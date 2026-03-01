@@ -1,56 +1,63 @@
 package com.example
 
-import com.asyncapi.kotlinasyncapi.context.service.AsyncApiExtension
-import com.asyncapi.kotlinasyncapi.ktor.AsyncApiPlugin
 import io.ktor.http.ContentType
-import io.ktor.openapi.*
 import io.ktor.server.application.*
-import io.ktor.server.plugins.openapi.*
-import io.ktor.server.plugins.swagger.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import java.io.File
+import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.transactions.transaction
+import java.time.Instant
 
 fun Application.configureRouting() {
     routing {
         get("/") {
-            call.respondText("localhost:8080/vpn/nodes", contentType = ContentType.Text.Any)
+            call.respondText("VPN Server API\n\nEndpoints:\n- GET /vpn/nodes\n- GET /health",
+                contentType = ContentType.Text.Plain)
         }
-        get("/vpn/nodes") { // Список доступных серверов
-            val file = File("files/sth.json")
-            call.respondFile(file)
-        }
-        get("/policy/current") {
 
+        get("/vpn/nodes") {
+            try {
+                val servers = transaction {
+                    ServersTable.selectAll().map { row ->
+                        mapOf(
+                            "id" to row[ServersTable.id].toString(),
+                            "name" to row[ServersTable.name],
+                            "country" to row[ServersTable.country],
+                            "city" to row[ServersTable.city],
+                            "load" to row[ServersTable.currentLoadPercent],
+                            "hostname" to row[ServersTable.hostname],
+                            "ip" to row[ServersTable.ipAddress]
+                        )
+                    }
+                }
+                call.respond(mapOf("servers" to servers))
+            } catch (e: Exception) {
+                call.respond(mapOf("error" to e.message))
+            }
         }
-        post("/auth/register"){
 
+        get("/health") {
+            try {
+                val dbStatus = checkDatabaseHealth()
+                call.respond(mapOf(
+                    "status" to "OK",
+                    "database" to if (dbStatus) "connected" else "error",
+                    "timestamp" to Instant.now().toString()
+                ))
+            } catch (e: Exception) {
+                call.respond(mapOf(
+                    "status" to "ERROR",
+                    "database" to "disconnected",
+                    "error" to e.message
+                ))
+            }
         }
-        post("/auth/login"){
 
-        }
-        post("/devices/bind"){
-
-        }
-        post("/vpn/config"){
-
-        }
-        post("/telemetry"){
-
-        }
+        get("/policy/current") { call.respond(mapOf("message" to "Not implemented")) }
+        post("/auth/register") { call.respond(mapOf("message" to "Not implemented")) }
+        post("/auth/login") { call.respond(mapOf("message" to "Not implemented")) }
+        post("/devices/bind") { call.respond(mapOf("message" to "Not implemented")) }
+        post("/vpn/config") { call.respond(mapOf("message" to "Not implemented")) }
+        post("/telemetry") { call.respond(mapOf("message" to "Not implemented")) }
     }
 }
-
-//        "====================================================================================\n" +
-//        "=====00=======0000000==0000000000==00==00000000========0000000==00=======00=========\n" +
-//        "=====00=======00===========00======00==00==============00===00==00=======00=========\n" +
-//        "=====00=======0000000======00======00==00000000========0000000==00=======00=========\n" +
-//        "=====00=======00===========00================00========00===00==00=======00=========\n" +
-//        "=====0000000==0000000======00==========00000000========00===00==0000000==0000000====\n" +
-//        "====================================================================================\n" +
-//        "==00=======00000000==00===00==0000000========00=======0000000==00000000===000===00==\n" +
-//        "==00=======00====00==00===00==00=============00=======00===00=====00======0000==00==\n" +
-//        "==00=======00====00==00===00==0000000========00=======0000000=====00======00=00=00==\n" +
-//        "==00=======00====00===00=00===00=============00=======00===00=====00======00==0000==\n" +
-//        "==0000000==00000000====000====0000000========0000000==00===00==00000000===00===000==\n" +
-//        "===================================================================================="

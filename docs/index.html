@@ -706,14 +706,38 @@
             <li class="nav-fixed nav-header active" data-group="_"><a href="#api-_">API Summary</a></li>
 
                   <li class="nav-header" data-group="Default"><a href="#api-Default">API Methods - Default</a></li>
+                    <li data-group="Default" data-name="authLoginPost" class="">
+                      <a href="#api-Default-authLoginPost">authLoginPost</a>
+                    </li>
+                    <li data-group="Default" data-name="authRegisterPost" class="">
+                      <a href="#api-Default-authRegisterPost">authRegisterPost</a>
+                    </li>
+                    <li data-group="Default" data-name="devicesBindPost" class="">
+                      <a href="#api-Default-devicesBindPost">devicesBindPost</a>
+                    </li>
                     <li data-group="Default" data-name="docsAsyncapiGet" class="">
                       <a href="#api-Default-docsAsyncapiGet">docsAsyncapiGet</a>
+                    </li>
+                    <li data-group="Default" data-name="healthGet" class="">
+                      <a href="#api-Default-healthGet">healthGet</a>
                     </li>
                     <li data-group="Default" data-name="openapiGet" class="">
                       <a href="#api-Default-openapiGet">openapiGet</a>
                     </li>
+                    <li data-group="Default" data-name="policyCurrentGet" class="">
+                      <a href="#api-Default-policyCurrentGet">policyCurrentGet</a>
+                    </li>
                     <li data-group="Default" data-name="rootGet" class="">
                       <a href="#api-Default-rootGet">rootGet</a>
+                    </li>
+                    <li data-group="Default" data-name="telemetryPost" class="">
+                      <a href="#api-Default-telemetryPost">telemetryPost</a>
+                    </li>
+                    <li data-group="Default" data-name="vpnConfigPost" class="">
+                      <a href="#api-Default-vpnConfigPost">vpnConfigPost</a>
+                    </li>
+                    <li data-group="Default" data-name="vpnNodesGet" class="">
+                      <a href="#api-Default-vpnNodesGet">vpnNodesGet</a>
                     </li>
           </ul>
         </nav>
@@ -736,6 +760,597 @@
         <div id="sections">
                 <section id="api-Default">
                   <h1>Default</h1>
+                    <div id="api-Default-authLoginPost">
+                      <article id="api-Default-authLoginPost-0" data-group="User" data-name="authLoginPost" data-version="0">
+                        <div class="pull-left">
+                          <h1>authLoginPost</h1>
+                          <p></p>
+                        </div>
+                        <div class="pull-right"></div>
+                        <div class="clearfix"></div>
+                        <p></p>
+                        <p class="marked"></p>
+                        <p></p>
+                        <br />
+                        <pre class="prettyprint language-html prettyprinted" data-type="post"><code><span class="pln">/auth/login</span></code></pre>
+                        <p>
+                          <h3>Usage and SDK Samples</h3>
+                        </p>
+                        <ul class="nav nav-tabs nav-tabs-examples">
+                          <li class="active"><a href="#examples-Default-authLoginPost-0-curl">Curl</a></li>
+                          <li class=""><a href="#examples-Default-authLoginPost-0-java">Java</a></li>
+                          <li class=""><a href="#examples-Default-authLoginPost-0-android">Android</a></li>
+                          <!--<li class=""><a href="#examples-Default-authLoginPost-0-groovy">Groovy</a></li>-->
+                          <li class=""><a href="#examples-Default-authLoginPost-0-objc">Obj-C</a></li>
+                          <li class=""><a href="#examples-Default-authLoginPost-0-javascript">JavaScript</a></li>
+                          <!--<li class=""><a href="#examples-Default-authLoginPost-0-angular">Angular</a></li>-->
+                          <li class=""><a href="#examples-Default-authLoginPost-0-csharp">C#</a></li>
+                          <li class=""><a href="#examples-Default-authLoginPost-0-php">PHP</a></li>
+                          <li class=""><a href="#examples-Default-authLoginPost-0-perl">Perl</a></li>
+                          <li class=""><a href="#examples-Default-authLoginPost-0-python">Python</a></li>
+                        </ul>
+
+                        <div class="tab-content">
+                          <div class="tab-pane active" id="examples-Default-authLoginPost-0-curl">
+                           <pre class="prettyprint"><code class="language-bsh">curl -X POST\
+"//auth/login"</code></pre>
+                          </div>
+                          <div class="tab-pane" id="examples-Default-authLoginPost-0-java">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.*;
+import io.swagger.client.auth.*;
+import io.swagger.client.model.*;
+import io.swagger.client.api.DefaultApi;
+
+import java.io.File;
+import java.util.*;
+
+public class DefaultApiExample {
+
+    public static void main(String[] args) {
+        
+        DefaultApi apiInstance = new DefaultApi();
+        try {
+            apiInstance.authLoginPost();
+        } catch (ApiException e) {
+            System.err.println("Exception when calling DefaultApi#authLoginPost");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+
+                          <div class="tab-pane" id="examples-Default-authLoginPost-0-android">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.api.DefaultApi;
+
+public class DefaultApiExample {
+
+    public static void main(String[] args) {
+        DefaultApi apiInstance = new DefaultApi();
+        try {
+            apiInstance.authLoginPost();
+        } catch (ApiException e) {
+            System.err.println("Exception when calling DefaultApi#authLoginPost");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+  <!--
+  <div class="tab-pane" id="examples-Default-authLoginPost-0-groovy">
+  <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+  </div> -->
+                            <div class="tab-pane" id="examples-Default-authLoginPost-0-objc">
+                              <pre class="prettyprint"><code class="language-cpp">
+DefaultApi *apiInstance = [[DefaultApi alloc] init];
+
+[apiInstance authLoginPostWithCompletionHandler: 
+              ^(NSError* error) {
+                            if (error) {
+                                NSLog(@"Error: %@", error);
+                            }
+                        }];
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-authLoginPost-0-javascript">
+                              <pre class="prettyprint"><code class="language-js">var MyApi = require('my_api');
+
+var api = new MyApi.DefaultApi()
+var callback = function(error, data, response) {
+  if (error) {
+    console.error(error);
+  } else {
+    console.log('API called successfully.');
+  }
+};
+api.authLoginPost(callback);
+</code></pre>
+                            </div>
+
+                            <!--<div class="tab-pane" id="examples-Default-authLoginPost-0-angular">
+              <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+            </div>-->
+                            <div class="tab-pane" id="examples-Default-authLoginPost-0-csharp">
+                              <pre class="prettyprint"><code class="language-cs">using System;
+using System.Diagnostics;
+using IO.Swagger.Api;
+using IO.Swagger.Client;
+using IO.Swagger.Model;
+
+namespace Example
+{
+    public class authLoginPostExample
+    {
+        public void main()
+        {
+
+            var apiInstance = new DefaultApi();
+
+            try
+            {
+                apiInstance.authLoginPost();
+            }
+            catch (Exception e)
+            {
+                Debug.Print("Exception when calling DefaultApi.authLoginPost: " + e.Message );
+            }
+        }
+    }
+}
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-authLoginPost-0-php">
+                              <pre class="prettyprint"><code class="language-php"><&#63;php
+require_once(__DIR__ . '/vendor/autoload.php');
+
+$api_instance = new Swagger\Client\ApiDefaultApi();
+
+try {
+    $api_instance->authLoginPost();
+} catch (Exception $e) {
+    echo 'Exception when calling DefaultApi->authLoginPost: ', $e->getMessage(), PHP_EOL;
+}
+?></code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-authLoginPost-0-perl">
+                              <pre class="prettyprint"><code class="language-perl">use Data::Dumper;
+use WWW::SwaggerClient::Configuration;
+use WWW::SwaggerClient::DefaultApi;
+
+my $api_instance = WWW::SwaggerClient::DefaultApi->new();
+
+eval { 
+    $api_instance->authLoginPost();
+};
+if ($@) {
+    warn "Exception when calling DefaultApi->authLoginPost: $@\n";
+}</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-authLoginPost-0-python">
+                              <pre class="prettyprint"><code class="language-python">from __future__ import print_statement
+import time
+import swagger_client
+from swagger_client.rest import ApiException
+from pprint import pprint
+
+# create an instance of the API class
+api_instance = swagger_client.DefaultApi()
+
+try: 
+    api_instance.auth_login_post()
+except ApiException as e:
+    print("Exception when calling DefaultApi->authLoginPost: %s\n" % e)</code></pre>
+                            </div>
+                          </div>
+
+                          <h2>Parameters</h2>
+
+
+
+
+
+
+                          <h2>Responses</h2>
+                        </article>
+                      </div>
+                      <hr>
+                    <div id="api-Default-authRegisterPost">
+                      <article id="api-Default-authRegisterPost-0" data-group="User" data-name="authRegisterPost" data-version="0">
+                        <div class="pull-left">
+                          <h1>authRegisterPost</h1>
+                          <p></p>
+                        </div>
+                        <div class="pull-right"></div>
+                        <div class="clearfix"></div>
+                        <p></p>
+                        <p class="marked"></p>
+                        <p></p>
+                        <br />
+                        <pre class="prettyprint language-html prettyprinted" data-type="post"><code><span class="pln">/auth/register</span></code></pre>
+                        <p>
+                          <h3>Usage and SDK Samples</h3>
+                        </p>
+                        <ul class="nav nav-tabs nav-tabs-examples">
+                          <li class="active"><a href="#examples-Default-authRegisterPost-0-curl">Curl</a></li>
+                          <li class=""><a href="#examples-Default-authRegisterPost-0-java">Java</a></li>
+                          <li class=""><a href="#examples-Default-authRegisterPost-0-android">Android</a></li>
+                          <!--<li class=""><a href="#examples-Default-authRegisterPost-0-groovy">Groovy</a></li>-->
+                          <li class=""><a href="#examples-Default-authRegisterPost-0-objc">Obj-C</a></li>
+                          <li class=""><a href="#examples-Default-authRegisterPost-0-javascript">JavaScript</a></li>
+                          <!--<li class=""><a href="#examples-Default-authRegisterPost-0-angular">Angular</a></li>-->
+                          <li class=""><a href="#examples-Default-authRegisterPost-0-csharp">C#</a></li>
+                          <li class=""><a href="#examples-Default-authRegisterPost-0-php">PHP</a></li>
+                          <li class=""><a href="#examples-Default-authRegisterPost-0-perl">Perl</a></li>
+                          <li class=""><a href="#examples-Default-authRegisterPost-0-python">Python</a></li>
+                        </ul>
+
+                        <div class="tab-content">
+                          <div class="tab-pane active" id="examples-Default-authRegisterPost-0-curl">
+                           <pre class="prettyprint"><code class="language-bsh">curl -X POST\
+"//auth/register"</code></pre>
+                          </div>
+                          <div class="tab-pane" id="examples-Default-authRegisterPost-0-java">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.*;
+import io.swagger.client.auth.*;
+import io.swagger.client.model.*;
+import io.swagger.client.api.DefaultApi;
+
+import java.io.File;
+import java.util.*;
+
+public class DefaultApiExample {
+
+    public static void main(String[] args) {
+        
+        DefaultApi apiInstance = new DefaultApi();
+        try {
+            apiInstance.authRegisterPost();
+        } catch (ApiException e) {
+            System.err.println("Exception when calling DefaultApi#authRegisterPost");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+
+                          <div class="tab-pane" id="examples-Default-authRegisterPost-0-android">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.api.DefaultApi;
+
+public class DefaultApiExample {
+
+    public static void main(String[] args) {
+        DefaultApi apiInstance = new DefaultApi();
+        try {
+            apiInstance.authRegisterPost();
+        } catch (ApiException e) {
+            System.err.println("Exception when calling DefaultApi#authRegisterPost");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+  <!--
+  <div class="tab-pane" id="examples-Default-authRegisterPost-0-groovy">
+  <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+  </div> -->
+                            <div class="tab-pane" id="examples-Default-authRegisterPost-0-objc">
+                              <pre class="prettyprint"><code class="language-cpp">
+DefaultApi *apiInstance = [[DefaultApi alloc] init];
+
+[apiInstance authRegisterPostWithCompletionHandler: 
+              ^(NSError* error) {
+                            if (error) {
+                                NSLog(@"Error: %@", error);
+                            }
+                        }];
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-authRegisterPost-0-javascript">
+                              <pre class="prettyprint"><code class="language-js">var MyApi = require('my_api');
+
+var api = new MyApi.DefaultApi()
+var callback = function(error, data, response) {
+  if (error) {
+    console.error(error);
+  } else {
+    console.log('API called successfully.');
+  }
+};
+api.authRegisterPost(callback);
+</code></pre>
+                            </div>
+
+                            <!--<div class="tab-pane" id="examples-Default-authRegisterPost-0-angular">
+              <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+            </div>-->
+                            <div class="tab-pane" id="examples-Default-authRegisterPost-0-csharp">
+                              <pre class="prettyprint"><code class="language-cs">using System;
+using System.Diagnostics;
+using IO.Swagger.Api;
+using IO.Swagger.Client;
+using IO.Swagger.Model;
+
+namespace Example
+{
+    public class authRegisterPostExample
+    {
+        public void main()
+        {
+
+            var apiInstance = new DefaultApi();
+
+            try
+            {
+                apiInstance.authRegisterPost();
+            }
+            catch (Exception e)
+            {
+                Debug.Print("Exception when calling DefaultApi.authRegisterPost: " + e.Message );
+            }
+        }
+    }
+}
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-authRegisterPost-0-php">
+                              <pre class="prettyprint"><code class="language-php"><&#63;php
+require_once(__DIR__ . '/vendor/autoload.php');
+
+$api_instance = new Swagger\Client\ApiDefaultApi();
+
+try {
+    $api_instance->authRegisterPost();
+} catch (Exception $e) {
+    echo 'Exception when calling DefaultApi->authRegisterPost: ', $e->getMessage(), PHP_EOL;
+}
+?></code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-authRegisterPost-0-perl">
+                              <pre class="prettyprint"><code class="language-perl">use Data::Dumper;
+use WWW::SwaggerClient::Configuration;
+use WWW::SwaggerClient::DefaultApi;
+
+my $api_instance = WWW::SwaggerClient::DefaultApi->new();
+
+eval { 
+    $api_instance->authRegisterPost();
+};
+if ($@) {
+    warn "Exception when calling DefaultApi->authRegisterPost: $@\n";
+}</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-authRegisterPost-0-python">
+                              <pre class="prettyprint"><code class="language-python">from __future__ import print_statement
+import time
+import swagger_client
+from swagger_client.rest import ApiException
+from pprint import pprint
+
+# create an instance of the API class
+api_instance = swagger_client.DefaultApi()
+
+try: 
+    api_instance.auth_register_post()
+except ApiException as e:
+    print("Exception when calling DefaultApi->authRegisterPost: %s\n" % e)</code></pre>
+                            </div>
+                          </div>
+
+                          <h2>Parameters</h2>
+
+
+
+
+
+
+                          <h2>Responses</h2>
+                        </article>
+                      </div>
+                      <hr>
+                    <div id="api-Default-devicesBindPost">
+                      <article id="api-Default-devicesBindPost-0" data-group="User" data-name="devicesBindPost" data-version="0">
+                        <div class="pull-left">
+                          <h1>devicesBindPost</h1>
+                          <p></p>
+                        </div>
+                        <div class="pull-right"></div>
+                        <div class="clearfix"></div>
+                        <p></p>
+                        <p class="marked"></p>
+                        <p></p>
+                        <br />
+                        <pre class="prettyprint language-html prettyprinted" data-type="post"><code><span class="pln">/devices/bind</span></code></pre>
+                        <p>
+                          <h3>Usage and SDK Samples</h3>
+                        </p>
+                        <ul class="nav nav-tabs nav-tabs-examples">
+                          <li class="active"><a href="#examples-Default-devicesBindPost-0-curl">Curl</a></li>
+                          <li class=""><a href="#examples-Default-devicesBindPost-0-java">Java</a></li>
+                          <li class=""><a href="#examples-Default-devicesBindPost-0-android">Android</a></li>
+                          <!--<li class=""><a href="#examples-Default-devicesBindPost-0-groovy">Groovy</a></li>-->
+                          <li class=""><a href="#examples-Default-devicesBindPost-0-objc">Obj-C</a></li>
+                          <li class=""><a href="#examples-Default-devicesBindPost-0-javascript">JavaScript</a></li>
+                          <!--<li class=""><a href="#examples-Default-devicesBindPost-0-angular">Angular</a></li>-->
+                          <li class=""><a href="#examples-Default-devicesBindPost-0-csharp">C#</a></li>
+                          <li class=""><a href="#examples-Default-devicesBindPost-0-php">PHP</a></li>
+                          <li class=""><a href="#examples-Default-devicesBindPost-0-perl">Perl</a></li>
+                          <li class=""><a href="#examples-Default-devicesBindPost-0-python">Python</a></li>
+                        </ul>
+
+                        <div class="tab-content">
+                          <div class="tab-pane active" id="examples-Default-devicesBindPost-0-curl">
+                           <pre class="prettyprint"><code class="language-bsh">curl -X POST\
+"//devices/bind"</code></pre>
+                          </div>
+                          <div class="tab-pane" id="examples-Default-devicesBindPost-0-java">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.*;
+import io.swagger.client.auth.*;
+import io.swagger.client.model.*;
+import io.swagger.client.api.DefaultApi;
+
+import java.io.File;
+import java.util.*;
+
+public class DefaultApiExample {
+
+    public static void main(String[] args) {
+        
+        DefaultApi apiInstance = new DefaultApi();
+        try {
+            apiInstance.devicesBindPost();
+        } catch (ApiException e) {
+            System.err.println("Exception when calling DefaultApi#devicesBindPost");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+
+                          <div class="tab-pane" id="examples-Default-devicesBindPost-0-android">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.api.DefaultApi;
+
+public class DefaultApiExample {
+
+    public static void main(String[] args) {
+        DefaultApi apiInstance = new DefaultApi();
+        try {
+            apiInstance.devicesBindPost();
+        } catch (ApiException e) {
+            System.err.println("Exception when calling DefaultApi#devicesBindPost");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+  <!--
+  <div class="tab-pane" id="examples-Default-devicesBindPost-0-groovy">
+  <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+  </div> -->
+                            <div class="tab-pane" id="examples-Default-devicesBindPost-0-objc">
+                              <pre class="prettyprint"><code class="language-cpp">
+DefaultApi *apiInstance = [[DefaultApi alloc] init];
+
+[apiInstance devicesBindPostWithCompletionHandler: 
+              ^(NSError* error) {
+                            if (error) {
+                                NSLog(@"Error: %@", error);
+                            }
+                        }];
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-devicesBindPost-0-javascript">
+                              <pre class="prettyprint"><code class="language-js">var MyApi = require('my_api');
+
+var api = new MyApi.DefaultApi()
+var callback = function(error, data, response) {
+  if (error) {
+    console.error(error);
+  } else {
+    console.log('API called successfully.');
+  }
+};
+api.devicesBindPost(callback);
+</code></pre>
+                            </div>
+
+                            <!--<div class="tab-pane" id="examples-Default-devicesBindPost-0-angular">
+              <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+            </div>-->
+                            <div class="tab-pane" id="examples-Default-devicesBindPost-0-csharp">
+                              <pre class="prettyprint"><code class="language-cs">using System;
+using System.Diagnostics;
+using IO.Swagger.Api;
+using IO.Swagger.Client;
+using IO.Swagger.Model;
+
+namespace Example
+{
+    public class devicesBindPostExample
+    {
+        public void main()
+        {
+
+            var apiInstance = new DefaultApi();
+
+            try
+            {
+                apiInstance.devicesBindPost();
+            }
+            catch (Exception e)
+            {
+                Debug.Print("Exception when calling DefaultApi.devicesBindPost: " + e.Message );
+            }
+        }
+    }
+}
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-devicesBindPost-0-php">
+                              <pre class="prettyprint"><code class="language-php"><&#63;php
+require_once(__DIR__ . '/vendor/autoload.php');
+
+$api_instance = new Swagger\Client\ApiDefaultApi();
+
+try {
+    $api_instance->devicesBindPost();
+} catch (Exception $e) {
+    echo 'Exception when calling DefaultApi->devicesBindPost: ', $e->getMessage(), PHP_EOL;
+}
+?></code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-devicesBindPost-0-perl">
+                              <pre class="prettyprint"><code class="language-perl">use Data::Dumper;
+use WWW::SwaggerClient::Configuration;
+use WWW::SwaggerClient::DefaultApi;
+
+my $api_instance = WWW::SwaggerClient::DefaultApi->new();
+
+eval { 
+    $api_instance->devicesBindPost();
+};
+if ($@) {
+    warn "Exception when calling DefaultApi->devicesBindPost: $@\n";
+}</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-devicesBindPost-0-python">
+                              <pre class="prettyprint"><code class="language-python">from __future__ import print_statement
+import time
+import swagger_client
+from swagger_client.rest import ApiException
+from pprint import pprint
+
+# create an instance of the API class
+api_instance = swagger_client.DefaultApi()
+
+try: 
+    api_instance.devices_bind_post()
+except ApiException as e:
+    print("Exception when calling DefaultApi->devicesBindPost: %s\n" % e)</code></pre>
+                            </div>
+                          </div>
+
+                          <h2>Parameters</h2>
+
+
+
+
+
+
+                          <h2>Responses</h2>
+                        </article>
+                      </div>
+                      <hr>
                     <div id="api-Default-docsAsyncapiGet">
                       <article id="api-Default-docsAsyncapiGet-0" data-group="User" data-name="docsAsyncapiGet" data-version="0">
                         <div class="pull-left">
@@ -919,6 +1534,203 @@ try:
     api_instance.docs_asyncapi_get()
 except ApiException as e:
     print("Exception when calling DefaultApi->docsAsyncapiGet: %s\n" % e)</code></pre>
+                            </div>
+                          </div>
+
+                          <h2>Parameters</h2>
+
+
+
+
+
+
+                          <h2>Responses</h2>
+                        </article>
+                      </div>
+                      <hr>
+                    <div id="api-Default-healthGet">
+                      <article id="api-Default-healthGet-0" data-group="User" data-name="healthGet" data-version="0">
+                        <div class="pull-left">
+                          <h1>healthGet</h1>
+                          <p></p>
+                        </div>
+                        <div class="pull-right"></div>
+                        <div class="clearfix"></div>
+                        <p></p>
+                        <p class="marked"></p>
+                        <p></p>
+                        <br />
+                        <pre class="prettyprint language-html prettyprinted" data-type="get"><code><span class="pln">/health</span></code></pre>
+                        <p>
+                          <h3>Usage and SDK Samples</h3>
+                        </p>
+                        <ul class="nav nav-tabs nav-tabs-examples">
+                          <li class="active"><a href="#examples-Default-healthGet-0-curl">Curl</a></li>
+                          <li class=""><a href="#examples-Default-healthGet-0-java">Java</a></li>
+                          <li class=""><a href="#examples-Default-healthGet-0-android">Android</a></li>
+                          <!--<li class=""><a href="#examples-Default-healthGet-0-groovy">Groovy</a></li>-->
+                          <li class=""><a href="#examples-Default-healthGet-0-objc">Obj-C</a></li>
+                          <li class=""><a href="#examples-Default-healthGet-0-javascript">JavaScript</a></li>
+                          <!--<li class=""><a href="#examples-Default-healthGet-0-angular">Angular</a></li>-->
+                          <li class=""><a href="#examples-Default-healthGet-0-csharp">C#</a></li>
+                          <li class=""><a href="#examples-Default-healthGet-0-php">PHP</a></li>
+                          <li class=""><a href="#examples-Default-healthGet-0-perl">Perl</a></li>
+                          <li class=""><a href="#examples-Default-healthGet-0-python">Python</a></li>
+                        </ul>
+
+                        <div class="tab-content">
+                          <div class="tab-pane active" id="examples-Default-healthGet-0-curl">
+                           <pre class="prettyprint"><code class="language-bsh">curl -X GET\
+"//health"</code></pre>
+                          </div>
+                          <div class="tab-pane" id="examples-Default-healthGet-0-java">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.*;
+import io.swagger.client.auth.*;
+import io.swagger.client.model.*;
+import io.swagger.client.api.DefaultApi;
+
+import java.io.File;
+import java.util.*;
+
+public class DefaultApiExample {
+
+    public static void main(String[] args) {
+        
+        DefaultApi apiInstance = new DefaultApi();
+        try {
+            apiInstance.healthGet();
+        } catch (ApiException e) {
+            System.err.println("Exception when calling DefaultApi#healthGet");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+
+                          <div class="tab-pane" id="examples-Default-healthGet-0-android">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.api.DefaultApi;
+
+public class DefaultApiExample {
+
+    public static void main(String[] args) {
+        DefaultApi apiInstance = new DefaultApi();
+        try {
+            apiInstance.healthGet();
+        } catch (ApiException e) {
+            System.err.println("Exception when calling DefaultApi#healthGet");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+  <!--
+  <div class="tab-pane" id="examples-Default-healthGet-0-groovy">
+  <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+  </div> -->
+                            <div class="tab-pane" id="examples-Default-healthGet-0-objc">
+                              <pre class="prettyprint"><code class="language-cpp">
+DefaultApi *apiInstance = [[DefaultApi alloc] init];
+
+[apiInstance healthGetWithCompletionHandler: 
+              ^(NSError* error) {
+                            if (error) {
+                                NSLog(@"Error: %@", error);
+                            }
+                        }];
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-healthGet-0-javascript">
+                              <pre class="prettyprint"><code class="language-js">var MyApi = require('my_api');
+
+var api = new MyApi.DefaultApi()
+var callback = function(error, data, response) {
+  if (error) {
+    console.error(error);
+  } else {
+    console.log('API called successfully.');
+  }
+};
+api.healthGet(callback);
+</code></pre>
+                            </div>
+
+                            <!--<div class="tab-pane" id="examples-Default-healthGet-0-angular">
+              <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+            </div>-->
+                            <div class="tab-pane" id="examples-Default-healthGet-0-csharp">
+                              <pre class="prettyprint"><code class="language-cs">using System;
+using System.Diagnostics;
+using IO.Swagger.Api;
+using IO.Swagger.Client;
+using IO.Swagger.Model;
+
+namespace Example
+{
+    public class healthGetExample
+    {
+        public void main()
+        {
+
+            var apiInstance = new DefaultApi();
+
+            try
+            {
+                apiInstance.healthGet();
+            }
+            catch (Exception e)
+            {
+                Debug.Print("Exception when calling DefaultApi.healthGet: " + e.Message );
+            }
+        }
+    }
+}
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-healthGet-0-php">
+                              <pre class="prettyprint"><code class="language-php"><&#63;php
+require_once(__DIR__ . '/vendor/autoload.php');
+
+$api_instance = new Swagger\Client\ApiDefaultApi();
+
+try {
+    $api_instance->healthGet();
+} catch (Exception $e) {
+    echo 'Exception when calling DefaultApi->healthGet: ', $e->getMessage(), PHP_EOL;
+}
+?></code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-healthGet-0-perl">
+                              <pre class="prettyprint"><code class="language-perl">use Data::Dumper;
+use WWW::SwaggerClient::Configuration;
+use WWW::SwaggerClient::DefaultApi;
+
+my $api_instance = WWW::SwaggerClient::DefaultApi->new();
+
+eval { 
+    $api_instance->healthGet();
+};
+if ($@) {
+    warn "Exception when calling DefaultApi->healthGet: $@\n";
+}</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-healthGet-0-python">
+                              <pre class="prettyprint"><code class="language-python">from __future__ import print_statement
+import time
+import swagger_client
+from swagger_client.rest import ApiException
+from pprint import pprint
+
+# create an instance of the API class
+api_instance = swagger_client.DefaultApi()
+
+try: 
+    api_instance.health_get()
+except ApiException as e:
+    print("Exception when calling DefaultApi->healthGet: %s\n" % e)</code></pre>
                             </div>
                           </div>
 
@@ -1130,6 +1942,203 @@ except ApiException as e:
                         </article>
                       </div>
                       <hr>
+                    <div id="api-Default-policyCurrentGet">
+                      <article id="api-Default-policyCurrentGet-0" data-group="User" data-name="policyCurrentGet" data-version="0">
+                        <div class="pull-left">
+                          <h1>policyCurrentGet</h1>
+                          <p></p>
+                        </div>
+                        <div class="pull-right"></div>
+                        <div class="clearfix"></div>
+                        <p></p>
+                        <p class="marked"></p>
+                        <p></p>
+                        <br />
+                        <pre class="prettyprint language-html prettyprinted" data-type="get"><code><span class="pln">/policy/current</span></code></pre>
+                        <p>
+                          <h3>Usage and SDK Samples</h3>
+                        </p>
+                        <ul class="nav nav-tabs nav-tabs-examples">
+                          <li class="active"><a href="#examples-Default-policyCurrentGet-0-curl">Curl</a></li>
+                          <li class=""><a href="#examples-Default-policyCurrentGet-0-java">Java</a></li>
+                          <li class=""><a href="#examples-Default-policyCurrentGet-0-android">Android</a></li>
+                          <!--<li class=""><a href="#examples-Default-policyCurrentGet-0-groovy">Groovy</a></li>-->
+                          <li class=""><a href="#examples-Default-policyCurrentGet-0-objc">Obj-C</a></li>
+                          <li class=""><a href="#examples-Default-policyCurrentGet-0-javascript">JavaScript</a></li>
+                          <!--<li class=""><a href="#examples-Default-policyCurrentGet-0-angular">Angular</a></li>-->
+                          <li class=""><a href="#examples-Default-policyCurrentGet-0-csharp">C#</a></li>
+                          <li class=""><a href="#examples-Default-policyCurrentGet-0-php">PHP</a></li>
+                          <li class=""><a href="#examples-Default-policyCurrentGet-0-perl">Perl</a></li>
+                          <li class=""><a href="#examples-Default-policyCurrentGet-0-python">Python</a></li>
+                        </ul>
+
+                        <div class="tab-content">
+                          <div class="tab-pane active" id="examples-Default-policyCurrentGet-0-curl">
+                           <pre class="prettyprint"><code class="language-bsh">curl -X GET\
+"//policy/current"</code></pre>
+                          </div>
+                          <div class="tab-pane" id="examples-Default-policyCurrentGet-0-java">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.*;
+import io.swagger.client.auth.*;
+import io.swagger.client.model.*;
+import io.swagger.client.api.DefaultApi;
+
+import java.io.File;
+import java.util.*;
+
+public class DefaultApiExample {
+
+    public static void main(String[] args) {
+        
+        DefaultApi apiInstance = new DefaultApi();
+        try {
+            apiInstance.policyCurrentGet();
+        } catch (ApiException e) {
+            System.err.println("Exception when calling DefaultApi#policyCurrentGet");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+
+                          <div class="tab-pane" id="examples-Default-policyCurrentGet-0-android">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.api.DefaultApi;
+
+public class DefaultApiExample {
+
+    public static void main(String[] args) {
+        DefaultApi apiInstance = new DefaultApi();
+        try {
+            apiInstance.policyCurrentGet();
+        } catch (ApiException e) {
+            System.err.println("Exception when calling DefaultApi#policyCurrentGet");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+  <!--
+  <div class="tab-pane" id="examples-Default-policyCurrentGet-0-groovy">
+  <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+  </div> -->
+                            <div class="tab-pane" id="examples-Default-policyCurrentGet-0-objc">
+                              <pre class="prettyprint"><code class="language-cpp">
+DefaultApi *apiInstance = [[DefaultApi alloc] init];
+
+[apiInstance policyCurrentGetWithCompletionHandler: 
+              ^(NSError* error) {
+                            if (error) {
+                                NSLog(@"Error: %@", error);
+                            }
+                        }];
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-policyCurrentGet-0-javascript">
+                              <pre class="prettyprint"><code class="language-js">var MyApi = require('my_api');
+
+var api = new MyApi.DefaultApi()
+var callback = function(error, data, response) {
+  if (error) {
+    console.error(error);
+  } else {
+    console.log('API called successfully.');
+  }
+};
+api.policyCurrentGet(callback);
+</code></pre>
+                            </div>
+
+                            <!--<div class="tab-pane" id="examples-Default-policyCurrentGet-0-angular">
+              <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+            </div>-->
+                            <div class="tab-pane" id="examples-Default-policyCurrentGet-0-csharp">
+                              <pre class="prettyprint"><code class="language-cs">using System;
+using System.Diagnostics;
+using IO.Swagger.Api;
+using IO.Swagger.Client;
+using IO.Swagger.Model;
+
+namespace Example
+{
+    public class policyCurrentGetExample
+    {
+        public void main()
+        {
+
+            var apiInstance = new DefaultApi();
+
+            try
+            {
+                apiInstance.policyCurrentGet();
+            }
+            catch (Exception e)
+            {
+                Debug.Print("Exception when calling DefaultApi.policyCurrentGet: " + e.Message );
+            }
+        }
+    }
+}
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-policyCurrentGet-0-php">
+                              <pre class="prettyprint"><code class="language-php"><&#63;php
+require_once(__DIR__ . '/vendor/autoload.php');
+
+$api_instance = new Swagger\Client\ApiDefaultApi();
+
+try {
+    $api_instance->policyCurrentGet();
+} catch (Exception $e) {
+    echo 'Exception when calling DefaultApi->policyCurrentGet: ', $e->getMessage(), PHP_EOL;
+}
+?></code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-policyCurrentGet-0-perl">
+                              <pre class="prettyprint"><code class="language-perl">use Data::Dumper;
+use WWW::SwaggerClient::Configuration;
+use WWW::SwaggerClient::DefaultApi;
+
+my $api_instance = WWW::SwaggerClient::DefaultApi->new();
+
+eval { 
+    $api_instance->policyCurrentGet();
+};
+if ($@) {
+    warn "Exception when calling DefaultApi->policyCurrentGet: $@\n";
+}</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-policyCurrentGet-0-python">
+                              <pre class="prettyprint"><code class="language-python">from __future__ import print_statement
+import time
+import swagger_client
+from swagger_client.rest import ApiException
+from pprint import pprint
+
+# create an instance of the API class
+api_instance = swagger_client.DefaultApi()
+
+try: 
+    api_instance.policy_current_get()
+except ApiException as e:
+    print("Exception when calling DefaultApi->policyCurrentGet: %s\n" % e)</code></pre>
+                            </div>
+                          </div>
+
+                          <h2>Parameters</h2>
+
+
+
+
+
+
+                          <h2>Responses</h2>
+                        </article>
+                      </div>
+                      <hr>
                     <div id="api-Default-rootGet">
                       <article id="api-Default-rootGet-0" data-group="User" data-name="rootGet" data-version="0">
                         <div class="pull-left">
@@ -1313,6 +2322,597 @@ try:
     api_instance.root_get()
 except ApiException as e:
     print("Exception when calling DefaultApi->rootGet: %s\n" % e)</code></pre>
+                            </div>
+                          </div>
+
+                          <h2>Parameters</h2>
+
+
+
+
+
+
+                          <h2>Responses</h2>
+                        </article>
+                      </div>
+                      <hr>
+                    <div id="api-Default-telemetryPost">
+                      <article id="api-Default-telemetryPost-0" data-group="User" data-name="telemetryPost" data-version="0">
+                        <div class="pull-left">
+                          <h1>telemetryPost</h1>
+                          <p></p>
+                        </div>
+                        <div class="pull-right"></div>
+                        <div class="clearfix"></div>
+                        <p></p>
+                        <p class="marked"></p>
+                        <p></p>
+                        <br />
+                        <pre class="prettyprint language-html prettyprinted" data-type="post"><code><span class="pln">/telemetry</span></code></pre>
+                        <p>
+                          <h3>Usage and SDK Samples</h3>
+                        </p>
+                        <ul class="nav nav-tabs nav-tabs-examples">
+                          <li class="active"><a href="#examples-Default-telemetryPost-0-curl">Curl</a></li>
+                          <li class=""><a href="#examples-Default-telemetryPost-0-java">Java</a></li>
+                          <li class=""><a href="#examples-Default-telemetryPost-0-android">Android</a></li>
+                          <!--<li class=""><a href="#examples-Default-telemetryPost-0-groovy">Groovy</a></li>-->
+                          <li class=""><a href="#examples-Default-telemetryPost-0-objc">Obj-C</a></li>
+                          <li class=""><a href="#examples-Default-telemetryPost-0-javascript">JavaScript</a></li>
+                          <!--<li class=""><a href="#examples-Default-telemetryPost-0-angular">Angular</a></li>-->
+                          <li class=""><a href="#examples-Default-telemetryPost-0-csharp">C#</a></li>
+                          <li class=""><a href="#examples-Default-telemetryPost-0-php">PHP</a></li>
+                          <li class=""><a href="#examples-Default-telemetryPost-0-perl">Perl</a></li>
+                          <li class=""><a href="#examples-Default-telemetryPost-0-python">Python</a></li>
+                        </ul>
+
+                        <div class="tab-content">
+                          <div class="tab-pane active" id="examples-Default-telemetryPost-0-curl">
+                           <pre class="prettyprint"><code class="language-bsh">curl -X POST\
+"//telemetry"</code></pre>
+                          </div>
+                          <div class="tab-pane" id="examples-Default-telemetryPost-0-java">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.*;
+import io.swagger.client.auth.*;
+import io.swagger.client.model.*;
+import io.swagger.client.api.DefaultApi;
+
+import java.io.File;
+import java.util.*;
+
+public class DefaultApiExample {
+
+    public static void main(String[] args) {
+        
+        DefaultApi apiInstance = new DefaultApi();
+        try {
+            apiInstance.telemetryPost();
+        } catch (ApiException e) {
+            System.err.println("Exception when calling DefaultApi#telemetryPost");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+
+                          <div class="tab-pane" id="examples-Default-telemetryPost-0-android">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.api.DefaultApi;
+
+public class DefaultApiExample {
+
+    public static void main(String[] args) {
+        DefaultApi apiInstance = new DefaultApi();
+        try {
+            apiInstance.telemetryPost();
+        } catch (ApiException e) {
+            System.err.println("Exception when calling DefaultApi#telemetryPost");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+  <!--
+  <div class="tab-pane" id="examples-Default-telemetryPost-0-groovy">
+  <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+  </div> -->
+                            <div class="tab-pane" id="examples-Default-telemetryPost-0-objc">
+                              <pre class="prettyprint"><code class="language-cpp">
+DefaultApi *apiInstance = [[DefaultApi alloc] init];
+
+[apiInstance telemetryPostWithCompletionHandler: 
+              ^(NSError* error) {
+                            if (error) {
+                                NSLog(@"Error: %@", error);
+                            }
+                        }];
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-telemetryPost-0-javascript">
+                              <pre class="prettyprint"><code class="language-js">var MyApi = require('my_api');
+
+var api = new MyApi.DefaultApi()
+var callback = function(error, data, response) {
+  if (error) {
+    console.error(error);
+  } else {
+    console.log('API called successfully.');
+  }
+};
+api.telemetryPost(callback);
+</code></pre>
+                            </div>
+
+                            <!--<div class="tab-pane" id="examples-Default-telemetryPost-0-angular">
+              <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+            </div>-->
+                            <div class="tab-pane" id="examples-Default-telemetryPost-0-csharp">
+                              <pre class="prettyprint"><code class="language-cs">using System;
+using System.Diagnostics;
+using IO.Swagger.Api;
+using IO.Swagger.Client;
+using IO.Swagger.Model;
+
+namespace Example
+{
+    public class telemetryPostExample
+    {
+        public void main()
+        {
+
+            var apiInstance = new DefaultApi();
+
+            try
+            {
+                apiInstance.telemetryPost();
+            }
+            catch (Exception e)
+            {
+                Debug.Print("Exception when calling DefaultApi.telemetryPost: " + e.Message );
+            }
+        }
+    }
+}
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-telemetryPost-0-php">
+                              <pre class="prettyprint"><code class="language-php"><&#63;php
+require_once(__DIR__ . '/vendor/autoload.php');
+
+$api_instance = new Swagger\Client\ApiDefaultApi();
+
+try {
+    $api_instance->telemetryPost();
+} catch (Exception $e) {
+    echo 'Exception when calling DefaultApi->telemetryPost: ', $e->getMessage(), PHP_EOL;
+}
+?></code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-telemetryPost-0-perl">
+                              <pre class="prettyprint"><code class="language-perl">use Data::Dumper;
+use WWW::SwaggerClient::Configuration;
+use WWW::SwaggerClient::DefaultApi;
+
+my $api_instance = WWW::SwaggerClient::DefaultApi->new();
+
+eval { 
+    $api_instance->telemetryPost();
+};
+if ($@) {
+    warn "Exception when calling DefaultApi->telemetryPost: $@\n";
+}</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-telemetryPost-0-python">
+                              <pre class="prettyprint"><code class="language-python">from __future__ import print_statement
+import time
+import swagger_client
+from swagger_client.rest import ApiException
+from pprint import pprint
+
+# create an instance of the API class
+api_instance = swagger_client.DefaultApi()
+
+try: 
+    api_instance.telemetry_post()
+except ApiException as e:
+    print("Exception when calling DefaultApi->telemetryPost: %s\n" % e)</code></pre>
+                            </div>
+                          </div>
+
+                          <h2>Parameters</h2>
+
+
+
+
+
+
+                          <h2>Responses</h2>
+                        </article>
+                      </div>
+                      <hr>
+                    <div id="api-Default-vpnConfigPost">
+                      <article id="api-Default-vpnConfigPost-0" data-group="User" data-name="vpnConfigPost" data-version="0">
+                        <div class="pull-left">
+                          <h1>vpnConfigPost</h1>
+                          <p></p>
+                        </div>
+                        <div class="pull-right"></div>
+                        <div class="clearfix"></div>
+                        <p></p>
+                        <p class="marked"></p>
+                        <p></p>
+                        <br />
+                        <pre class="prettyprint language-html prettyprinted" data-type="post"><code><span class="pln">/vpn/config</span></code></pre>
+                        <p>
+                          <h3>Usage and SDK Samples</h3>
+                        </p>
+                        <ul class="nav nav-tabs nav-tabs-examples">
+                          <li class="active"><a href="#examples-Default-vpnConfigPost-0-curl">Curl</a></li>
+                          <li class=""><a href="#examples-Default-vpnConfigPost-0-java">Java</a></li>
+                          <li class=""><a href="#examples-Default-vpnConfigPost-0-android">Android</a></li>
+                          <!--<li class=""><a href="#examples-Default-vpnConfigPost-0-groovy">Groovy</a></li>-->
+                          <li class=""><a href="#examples-Default-vpnConfigPost-0-objc">Obj-C</a></li>
+                          <li class=""><a href="#examples-Default-vpnConfigPost-0-javascript">JavaScript</a></li>
+                          <!--<li class=""><a href="#examples-Default-vpnConfigPost-0-angular">Angular</a></li>-->
+                          <li class=""><a href="#examples-Default-vpnConfigPost-0-csharp">C#</a></li>
+                          <li class=""><a href="#examples-Default-vpnConfigPost-0-php">PHP</a></li>
+                          <li class=""><a href="#examples-Default-vpnConfigPost-0-perl">Perl</a></li>
+                          <li class=""><a href="#examples-Default-vpnConfigPost-0-python">Python</a></li>
+                        </ul>
+
+                        <div class="tab-content">
+                          <div class="tab-pane active" id="examples-Default-vpnConfigPost-0-curl">
+                           <pre class="prettyprint"><code class="language-bsh">curl -X POST\
+"//vpn/config"</code></pre>
+                          </div>
+                          <div class="tab-pane" id="examples-Default-vpnConfigPost-0-java">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.*;
+import io.swagger.client.auth.*;
+import io.swagger.client.model.*;
+import io.swagger.client.api.DefaultApi;
+
+import java.io.File;
+import java.util.*;
+
+public class DefaultApiExample {
+
+    public static void main(String[] args) {
+        
+        DefaultApi apiInstance = new DefaultApi();
+        try {
+            apiInstance.vpnConfigPost();
+        } catch (ApiException e) {
+            System.err.println("Exception when calling DefaultApi#vpnConfigPost");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+
+                          <div class="tab-pane" id="examples-Default-vpnConfigPost-0-android">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.api.DefaultApi;
+
+public class DefaultApiExample {
+
+    public static void main(String[] args) {
+        DefaultApi apiInstance = new DefaultApi();
+        try {
+            apiInstance.vpnConfigPost();
+        } catch (ApiException e) {
+            System.err.println("Exception when calling DefaultApi#vpnConfigPost");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+  <!--
+  <div class="tab-pane" id="examples-Default-vpnConfigPost-0-groovy">
+  <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+  </div> -->
+                            <div class="tab-pane" id="examples-Default-vpnConfigPost-0-objc">
+                              <pre class="prettyprint"><code class="language-cpp">
+DefaultApi *apiInstance = [[DefaultApi alloc] init];
+
+[apiInstance vpnConfigPostWithCompletionHandler: 
+              ^(NSError* error) {
+                            if (error) {
+                                NSLog(@"Error: %@", error);
+                            }
+                        }];
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-vpnConfigPost-0-javascript">
+                              <pre class="prettyprint"><code class="language-js">var MyApi = require('my_api');
+
+var api = new MyApi.DefaultApi()
+var callback = function(error, data, response) {
+  if (error) {
+    console.error(error);
+  } else {
+    console.log('API called successfully.');
+  }
+};
+api.vpnConfigPost(callback);
+</code></pre>
+                            </div>
+
+                            <!--<div class="tab-pane" id="examples-Default-vpnConfigPost-0-angular">
+              <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+            </div>-->
+                            <div class="tab-pane" id="examples-Default-vpnConfigPost-0-csharp">
+                              <pre class="prettyprint"><code class="language-cs">using System;
+using System.Diagnostics;
+using IO.Swagger.Api;
+using IO.Swagger.Client;
+using IO.Swagger.Model;
+
+namespace Example
+{
+    public class vpnConfigPostExample
+    {
+        public void main()
+        {
+
+            var apiInstance = new DefaultApi();
+
+            try
+            {
+                apiInstance.vpnConfigPost();
+            }
+            catch (Exception e)
+            {
+                Debug.Print("Exception when calling DefaultApi.vpnConfigPost: " + e.Message );
+            }
+        }
+    }
+}
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-vpnConfigPost-0-php">
+                              <pre class="prettyprint"><code class="language-php"><&#63;php
+require_once(__DIR__ . '/vendor/autoload.php');
+
+$api_instance = new Swagger\Client\ApiDefaultApi();
+
+try {
+    $api_instance->vpnConfigPost();
+} catch (Exception $e) {
+    echo 'Exception when calling DefaultApi->vpnConfigPost: ', $e->getMessage(), PHP_EOL;
+}
+?></code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-vpnConfigPost-0-perl">
+                              <pre class="prettyprint"><code class="language-perl">use Data::Dumper;
+use WWW::SwaggerClient::Configuration;
+use WWW::SwaggerClient::DefaultApi;
+
+my $api_instance = WWW::SwaggerClient::DefaultApi->new();
+
+eval { 
+    $api_instance->vpnConfigPost();
+};
+if ($@) {
+    warn "Exception when calling DefaultApi->vpnConfigPost: $@\n";
+}</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-vpnConfigPost-0-python">
+                              <pre class="prettyprint"><code class="language-python">from __future__ import print_statement
+import time
+import swagger_client
+from swagger_client.rest import ApiException
+from pprint import pprint
+
+# create an instance of the API class
+api_instance = swagger_client.DefaultApi()
+
+try: 
+    api_instance.vpn_config_post()
+except ApiException as e:
+    print("Exception when calling DefaultApi->vpnConfigPost: %s\n" % e)</code></pre>
+                            </div>
+                          </div>
+
+                          <h2>Parameters</h2>
+
+
+
+
+
+
+                          <h2>Responses</h2>
+                        </article>
+                      </div>
+                      <hr>
+                    <div id="api-Default-vpnNodesGet">
+                      <article id="api-Default-vpnNodesGet-0" data-group="User" data-name="vpnNodesGet" data-version="0">
+                        <div class="pull-left">
+                          <h1>vpnNodesGet</h1>
+                          <p></p>
+                        </div>
+                        <div class="pull-right"></div>
+                        <div class="clearfix"></div>
+                        <p></p>
+                        <p class="marked"></p>
+                        <p></p>
+                        <br />
+                        <pre class="prettyprint language-html prettyprinted" data-type="get"><code><span class="pln">/vpn/nodes</span></code></pre>
+                        <p>
+                          <h3>Usage and SDK Samples</h3>
+                        </p>
+                        <ul class="nav nav-tabs nav-tabs-examples">
+                          <li class="active"><a href="#examples-Default-vpnNodesGet-0-curl">Curl</a></li>
+                          <li class=""><a href="#examples-Default-vpnNodesGet-0-java">Java</a></li>
+                          <li class=""><a href="#examples-Default-vpnNodesGet-0-android">Android</a></li>
+                          <!--<li class=""><a href="#examples-Default-vpnNodesGet-0-groovy">Groovy</a></li>-->
+                          <li class=""><a href="#examples-Default-vpnNodesGet-0-objc">Obj-C</a></li>
+                          <li class=""><a href="#examples-Default-vpnNodesGet-0-javascript">JavaScript</a></li>
+                          <!--<li class=""><a href="#examples-Default-vpnNodesGet-0-angular">Angular</a></li>-->
+                          <li class=""><a href="#examples-Default-vpnNodesGet-0-csharp">C#</a></li>
+                          <li class=""><a href="#examples-Default-vpnNodesGet-0-php">PHP</a></li>
+                          <li class=""><a href="#examples-Default-vpnNodesGet-0-perl">Perl</a></li>
+                          <li class=""><a href="#examples-Default-vpnNodesGet-0-python">Python</a></li>
+                        </ul>
+
+                        <div class="tab-content">
+                          <div class="tab-pane active" id="examples-Default-vpnNodesGet-0-curl">
+                           <pre class="prettyprint"><code class="language-bsh">curl -X GET\
+"//vpn/nodes"</code></pre>
+                          </div>
+                          <div class="tab-pane" id="examples-Default-vpnNodesGet-0-java">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.*;
+import io.swagger.client.auth.*;
+import io.swagger.client.model.*;
+import io.swagger.client.api.DefaultApi;
+
+import java.io.File;
+import java.util.*;
+
+public class DefaultApiExample {
+
+    public static void main(String[] args) {
+        
+        DefaultApi apiInstance = new DefaultApi();
+        try {
+            apiInstance.vpnNodesGet();
+        } catch (ApiException e) {
+            System.err.println("Exception when calling DefaultApi#vpnNodesGet");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+
+                          <div class="tab-pane" id="examples-Default-vpnNodesGet-0-android">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.api.DefaultApi;
+
+public class DefaultApiExample {
+
+    public static void main(String[] args) {
+        DefaultApi apiInstance = new DefaultApi();
+        try {
+            apiInstance.vpnNodesGet();
+        } catch (ApiException e) {
+            System.err.println("Exception when calling DefaultApi#vpnNodesGet");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+  <!--
+  <div class="tab-pane" id="examples-Default-vpnNodesGet-0-groovy">
+  <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+  </div> -->
+                            <div class="tab-pane" id="examples-Default-vpnNodesGet-0-objc">
+                              <pre class="prettyprint"><code class="language-cpp">
+DefaultApi *apiInstance = [[DefaultApi alloc] init];
+
+[apiInstance vpnNodesGetWithCompletionHandler: 
+              ^(NSError* error) {
+                            if (error) {
+                                NSLog(@"Error: %@", error);
+                            }
+                        }];
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-vpnNodesGet-0-javascript">
+                              <pre class="prettyprint"><code class="language-js">var MyApi = require('my_api');
+
+var api = new MyApi.DefaultApi()
+var callback = function(error, data, response) {
+  if (error) {
+    console.error(error);
+  } else {
+    console.log('API called successfully.');
+  }
+};
+api.vpnNodesGet(callback);
+</code></pre>
+                            </div>
+
+                            <!--<div class="tab-pane" id="examples-Default-vpnNodesGet-0-angular">
+              <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+            </div>-->
+                            <div class="tab-pane" id="examples-Default-vpnNodesGet-0-csharp">
+                              <pre class="prettyprint"><code class="language-cs">using System;
+using System.Diagnostics;
+using IO.Swagger.Api;
+using IO.Swagger.Client;
+using IO.Swagger.Model;
+
+namespace Example
+{
+    public class vpnNodesGetExample
+    {
+        public void main()
+        {
+
+            var apiInstance = new DefaultApi();
+
+            try
+            {
+                apiInstance.vpnNodesGet();
+            }
+            catch (Exception e)
+            {
+                Debug.Print("Exception when calling DefaultApi.vpnNodesGet: " + e.Message );
+            }
+        }
+    }
+}
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-vpnNodesGet-0-php">
+                              <pre class="prettyprint"><code class="language-php"><&#63;php
+require_once(__DIR__ . '/vendor/autoload.php');
+
+$api_instance = new Swagger\Client\ApiDefaultApi();
+
+try {
+    $api_instance->vpnNodesGet();
+} catch (Exception $e) {
+    echo 'Exception when calling DefaultApi->vpnNodesGet: ', $e->getMessage(), PHP_EOL;
+}
+?></code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-vpnNodesGet-0-perl">
+                              <pre class="prettyprint"><code class="language-perl">use Data::Dumper;
+use WWW::SwaggerClient::Configuration;
+use WWW::SwaggerClient::DefaultApi;
+
+my $api_instance = WWW::SwaggerClient::DefaultApi->new();
+
+eval { 
+    $api_instance->vpnNodesGet();
+};
+if ($@) {
+    warn "Exception when calling DefaultApi->vpnNodesGet: $@\n";
+}</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Default-vpnNodesGet-0-python">
+                              <pre class="prettyprint"><code class="language-python">from __future__ import print_statement
+import time
+import swagger_client
+from swagger_client.rest import ApiException
+from pprint import pprint
+
+# create an instance of the API class
+api_instance = swagger_client.DefaultApi()
+
+try: 
+    api_instance.vpn_nodes_get()
+except ApiException as e:
+    print("Exception when calling DefaultApi->vpnNodesGet: %s\n" % e)</code></pre>
                             </div>
                           </div>
 

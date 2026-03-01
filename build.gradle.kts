@@ -42,20 +42,20 @@ dependencies {
     implementation("io.ktor:ktor-client-core:${ktor_version}")
     implementation("io.ktor:ktor-client-cio:${ktor_version}")
 
-    // Логирование (из обоих файлов)
+    // Логирование
     implementation("ch.qos.logback:logback-classic:$logback_version")
 
-    // Exposed ORM (из второго файла)
+    // Exposed ORM
     implementation("org.jetbrains.exposed:exposed-core:0.45.0")
     implementation("org.jetbrains.exposed:exposed-dao:0.45.0")
     implementation("org.jetbrains.exposed:exposed-jdbc:0.45.0")
     implementation("org.jetbrains.exposed:exposed-java-time:0.45.0")
 
-    // База данных (из второго файла)
+    // База данных
     implementation("org.postgresql:postgresql:42.7.1")
     implementation("com.zaxxer:HikariCP:5.1.0")
 
-    // Тестирование (из обоих файлов)
+    // Тестирование
     testImplementation("io.ktor:ktor-server-test-host")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
 }
