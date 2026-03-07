@@ -11,6 +11,9 @@ import java.math.BigDecimal
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.*
+import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.serialization.kotlinx.json.json
+import kotlinx.serialization.json.Json
 
 import allTables
 import UsersTable
@@ -33,9 +36,17 @@ fun main(args: Array<String>) {
     EngineMain.main(args)
 }
 
+
 fun Application.module() {
-    configureHTTP()      // из HTTP.kt
-    configureRouting()   // из Routing.kt
+    install(ContentNegotiation) {
+        json(Json {
+            prettyPrint = true
+            ignoreUnknownKeys = true
+        })
+    }
+
+    configureHTTP()
+    configureRouting()
 }
 
 fun initDatabase() {

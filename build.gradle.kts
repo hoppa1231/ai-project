@@ -21,24 +21,24 @@ kotlin {
 }
 
 dependencies {
-    // AsyncAPI (из первого файла)
+    // AsyncAPI
     implementation("org.openfolder:kotlin-asyncapi-ktor:3.1.3")
 
-    // Ktor Core (из обоих файлов)
+    // Ktor Core
     implementation("io.ktor:ktor-server-core")
     implementation("io.ktor:ktor-server-netty")
     implementation("io.ktor:ktor-server-config-yaml")
 
-    // OpenAPI и Swagger (объединение из обоих файлов)
+    // OpenAPI и Swagger
     implementation("io.ktor:ktor-server-openapi")
     implementation("io.ktor:ktor-server-routing-openapi")  // Из первого файла
     implementation("io.ktor:ktor-server-swagger")
 
-    // Content Negotiation и JSON (из второго файла)
+    // Content Negotiation и JSON
     implementation("io.ktor:ktor-server-content-negotiation")
     implementation("io.ktor:ktor-serialization-kotlinx-json")
 
-    // Версии с указанием (из первого файла для client, из второго для остального)
+    // Версии с указанием
     implementation("io.ktor:ktor-client-core:${ktor_version}")
     implementation("io.ktor:ktor-client-cio:${ktor_version}")
 

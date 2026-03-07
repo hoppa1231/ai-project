@@ -1,6 +1,7 @@
 package com.example
 
 import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -24,15 +25,16 @@ fun Application.configureRouting() {
                             "name" to row[ServersTable.name],
                             "country" to row[ServersTable.country],
                             "city" to row[ServersTable.city],
-                            "load" to row[ServersTable.currentLoadPercent],
+                            "load" to row[ServersTable.currentLoadPercent].toString(),
                             "hostname" to row[ServersTable.hostname],
                             "ip" to row[ServersTable.ipAddress]
                         )
                     }
                 }
-                call.respond(mapOf("servers" to servers))
+
+                call.respond(HttpStatusCode.OK, mapOf("servers" to servers))
             } catch (e: Exception) {
-                call.respond(mapOf("error" to e.message))
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to e.message))
             }
         }
 
