@@ -1,4 +1,4 @@
-rootProject.name = "test-server"
+rootProject.name = "ktor-sample"
 
 dependencyResolutionManagement {
     repositories {

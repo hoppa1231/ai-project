@@ -1,4 +1,4 @@
-# test-server
+# ktor-sample
 
 This project was created using the [Ktor Project Generator](https://start.ktor.io).
 
@@ -6,30 +6,22 @@ Here are some useful links to get you started:
 
 - [Ktor Documentation](https://ktor.io/docs/home.html)
 - [Ktor GitHub page](https://github.com/ktorio/ktor)
-- The [Ktor Slack chat](https://app.slack.com/client/T09229ZC6/C0A974TJ9). You'll need
-  to [request an invite](https://surveys.jetbrains.com/s3/kotlin-slack-sign-up) to join.
+- The [Ktor Slack chat](https://app.slack.com/client/T09229ZC6/C0A974TJ9). You'll need to [request an invite](https://surveys.jetbrains.com/s3/kotlin-slack-sign-up) to join.
 
 ## Features
 
 Here's a list of features included in this project:
 
-| Name                                                                   | Description                                                                        |
-|------------------------------------------------------------------------|------------------------------------------------------------------------------------|
-| [Routing](https://start.ktor.io/p/routing)                             | Provides a structured routing DSL                                                  |
-| [OpenAPI](https://start.ktor.io/p/openapi)                             | Serves OpenAPI documentation                                                       |
-| [Swagger](https://start.ktor.io/p/swagger)                             | Serves Swagger UI for your project                                                 |
-| [Content Negotiation](https://start.ktor.io/p/content-negotiation)     | Provides automatic content conversion according to Content-Type and Accept headers |
-| [GSON](https://start.ktor.io/p/ktor-gson)                              | Handles JSON serialization using GSON library                                      |
-| [kotlinx.serialization](https://start.ktor.io/p/kotlinx-serialization) | Handles JSON serialization using kotlinx.serialization library                     |
-| [Postgres](https://start.ktor.io/p/postgres)                           | Adds Postgres database to your application                                         |
-| [AsyncAPI](https://start.ktor.io/p/asyncapi)                           | Generates and serves AsyncAPI documentation                                        |
+| Name                                               | Description                                                 |
+| ----------------------------------------------------|------------------------------------------------------------- |
+| [Routing](https://start.ktor.io/p/routing-default) | Allows to define structured routes and associated handlers. |
 
 ## Building & Running
 
 To build or run the project, use one of the following tasks:
 
 | Task                                    | Description                                                          |
-|-----------------------------------------|----------------------------------------------------------------------|
+| -----------------------------------------|---------------------------------------------------------------------- |
 | `./gradlew test`                        | Run the tests                                                        |
 | `./gradlew build`                       | Build everything                                                     |
 | `./gradlew buildFatJar`                 | Build an executable JAR of the server with all dependencies included |
