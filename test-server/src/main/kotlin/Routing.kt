@@ -6,27 +6,51 @@ import io.ktor.server.routing.*
 
 fun Application.configureRouting() {
     routing {
+        // Operations with DB [create]
+        
+        
+
+
         get("/vpn/nodes") { // Список доступных серверов
-            call.respondText("доступные сервера:")
+            val nodes
+            call.respondText("доступные сервера: МАЙНКРАФТ")
         }
         get("/policy/current") {
-            call.respondText("политика:")
+            call.respondText("политика: ДЛЯ ДОЛБАЕБОВ")
         }
         post("/auth/register"){
-            call.respondText("зарегестрируйся:")
+            call.respondText("зарегестрируйся: В МАКСЕ")
         }
         post("/auth/login"){
-            call.respondText("залогинься:")
+            call.respondText("залогинься: В ГОСУСЛУГАХ")
         }
         post("/devices/bind"){
-            call.respondText("мобилки компутеры")
+            call.respondText("мобилки компутеры аппараты жизнеобеспечения")
         }
         post("/vpn/config"){
-            call.respondText("конфигурация:")
+            call.respondText("конфигурация: ДЛЯ ДЕБИЛИЗАЦИИ")
         }
         post("/telemetry"){
-            call.respondText("телеметрия:")
+            call.respondText("телеметрия: ИБО ТОК ТЕЛЕК ОСТАЛСЯ")
         }
+        // ------ //
+        // CRUD
+        get("/users/info"){
+            val id = call.parameters["id"]?.toIntOrNull() 
+            ?: return@get call.respond(HttpStatusCode.BadRequest, "...")
+            
+            val user = transaction {
+                Users_table.select {Users_table.id eq id}
+                    .singleOrNull()
+            }
+            if(user == null) call.respond(HttpStatusCode.NotFound)
+            else call.respond(mapOf(
+                "id"    to user[Users_table.id],
+                "login" to user[Users_table.login],
+                "email" to user[Users_table.status]?.value
+            ))
+        }   
+        
     }
 }
 

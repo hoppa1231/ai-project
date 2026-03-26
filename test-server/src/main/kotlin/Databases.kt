@@ -3,52 +3,49 @@ package com.example
 import io.ktor.server.application.*
 
 import org.jetbrains.exposed.v1.core.*              // Зависимости для Exposed'а
-import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.SchemaUtils
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.select
-import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
-
-import Tasks // Таблицы БД 
 
 fun Application.configureDatabases() {
-    // jdbc - указание на JDBC-соединение
-    // h2 - база данных H2
-    // mem - БД находится в ОП, т.е. данные будут потеряны при остановке сервера
-    // test - имя БД
-    // org.h2.Driver - указание на драйвер для H2 JDBC, которые используется для
-    // установки соединения.
-    Database.connect("jdbc:h2:mem:test", driver = "org.h2.Driver")
     transaction {
-        addLogger(StdOutSqlLogger)
-        SchemaUtils.create(Tasks)   // Создание таблицы задач
-                                    // Содержит вспомогательные методы для создания,
-                                    // изменения и удаления объектов БД.
-
-        val taskId = Tasks.insert {  // Метод класса Table для добавления новых записей.
-            // Здесь добавили заголовок и описание, запросив id (автоинкрементный)
-            it[title] = "Sololeveling"
-            it[description] = "luchee anime"
-        } get Tasks.id
-
-        val secondTaskId = Tasks.insert {
-            // Здесь также указали переменную, которая в прошлой записи автматически false
-            it[title] = "Prochitat' Tomozaki"
-            it[description] = "luchaya romkom ranobe!"
-            it[isCompleted] = true
-        } get Tasks.id
-
-        // Вывод присвоенных id
-        println("Sozdan' novie zadachi s id $taskId i $secondTaskId.") 
-
-        // Используем select для подсчета записей в отношении Tasks, группируя их по полю isCompleted
-        Tasks.select(Tasks.id.count(), Tasks.isCompleted).groupBy(Tasks.isCompleted).forEach {
-            println("${it[Tasks.isCompleted]}: ${it[Tasks.id.count()]} ")
+        addLogger(StdOutSqlLogger)  // Создаем логгирование
+        SchemaUtils.create(FirstRels)   // Создание конкретной таблицы
+        
+        // Метод для создания новой записи - new()
+        val task1 = FirstRel.new {
+            title = "Raki"
+            description = "S jenei snyali"
         }
 
-        println("Ostavshiesya zadachi: ${Tasks.selectAll().toList()}")
+        val task2 = FirstRel.new {
+            title = "Bipki"
+            description = "Ososesh - skaju"
+            amount = 20
+        }
+
+        // Обращение такое же, как без DAO
+        println("Sozdal govno s id ${task1.id} ei ${task2.id}")
+        // Методом find() выполняем запрос, который ищет все задачи с полем isCompleted = true
+        // преобразуя их в список.
+        val completed = FirstRel.find { FirstRels.amount eq 20 }.toList()
+        // Подсчитываем число элементов списка.
+        println("Bipki: ${completed.count()}")
+        // Обновляем запись.
+        task1.title = "Poesh govna"
+        task1.amount = 1
+        println("Obnovil proveryaii: $task1")
+
+        // Удаляем запись.
+        task2.delete() 
+        println("Ostavshiesya hueta: ${FirstRel.all().toList()}")
+        task1.delete()
     }
 }
+/* 
+Методы сноса отношений, если известен ID и они созданы в другой сессии
+val task1 = FirstRel.findById(1)
+println(task1)
+transaction {
+    UsersTable.deleteWhere { UsersTable.id eq entityId } // Delete directly with a condition
+}
+*/
