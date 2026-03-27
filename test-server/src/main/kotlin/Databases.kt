@@ -9,8 +9,13 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 fun Application.configureDatabases() {
     transaction {
         addLogger(StdOutSqlLogger)  // Создаем логгирование
-        SchemaUtils.create(FirstRels)   // Создание конкретной таблицы
-        
+        SchemaUtils.create(Users_tables)   // Создание конкретной таблицы
+        SchemaUtils.create(VPN_nodes_tables)
+        SchemaUtils.create(Node_clients_tables)
+        SchemaUtils.create(Policies_tables)
+        SchemaUtils.create(Issued_configs_tables)
+        SchemaUtils.create(Traffic_use_tables)
+        /*
         // Метод для создания новой записи - new()
         val task1 = FirstRel.new {
             title = "Raki"
@@ -39,6 +44,7 @@ fun Application.configureDatabases() {
         task2.delete() 
         println("Ostavshiesya hueta: ${FirstRel.all().toList()}")
         task1.delete()
+        */
     }
 }
 /* 

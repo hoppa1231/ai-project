@@ -3,6 +3,9 @@ package com.example
 // Класс таблиц IntIdTable автоматически добавляет столбец с автоинкрементными
 // целочисленными значениями id в качестве первичного ключа отношения.
 import org.jetbrains.exposed.v1.core.dao.id.IntIdTable
+// Зависимости для работы с параметрами создания записей в таблицах
+import org.jetbrains.exposed.v1.core.ReferenceOption
+import org.jetbrains.exposed.v1.core.Table.*
 
 // Зависимости для работы с DAO и для создания класса, связанного с отношением
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
@@ -10,7 +13,8 @@ import org.jetbrains.exposed.v1.dao.IntEntity
 import org.jetbrains.exposed.v1.dao.IntEntityClass
 
 // Для кастомных типов данных
-import org.jetbrains.exposed.sql.ColumnType
+import org.jetbrains.exposed.v1.core.ColumnType
+import org.jetbrains.exposed.v1.core.Column
 
 
 
@@ -24,66 +28,81 @@ const val MAX_VARCHAR_LENGTH = 100
 
 
 
+// Конструктор и фабрика для ограниченного в значениях строкового типа
+class RestrictedStringColumnType<T : Any>(
+    private val allowed: Set<String>,
+    private val typeName: String,
+    private val factory: (String) -> T,      // Создаёт T из String
+    private val valueExtractor: (T) -> String // Извлекает String из T
+) : ColumnType<T>() {
+    
+    override fun sqlType(): String = "VARCHAR(50)"
+    
+    override fun valueFromDB(value: Any): T {
+        val str = when (value) {
+            is String -> value
+            is ByteArray -> String(value, Charsets.UTF_8)
+            is Char -> value.toString()
+            else -> value.toString()
+        }
+        require(str in allowed) {
+            "Invalid $typeName: '$str'. Allowed: $allowed"
+        }
+        return factory(str)
+    }
+    
+    override fun notNullValueToDB(value: T): Any = 
+        valueExtractor(value)
+    
+    override fun valueToString(value: T?): String =
+        value?.let { "'${valueExtractor(it)}'" } ?: "NULL"
+}
+
 // Кастомный тип status_user для Users_tables
-@JvmInLine
+@JvmInline
 value class StatusUser private constructor(val value: String) {
     companion object {
         private val ALLOWED = setOf("ONLINE", "OFFLINE", "FROZED")
-
+        private const val NAME = "StatusUser"
+        
         fun of(value: String): StatusUser {
-            require(value in ALLOWED) { "Invalid status: $value" }
+            require(value in ALLOWED) { "Invalid $NAME: '$value'. Allowed: $ALLOWED" }
             return StatusUser(value)
         }
-
-        fun safeOf(value: String): StatusUser? =
-            if (value in ALLOWED) StatusUser(value) else null
+        
+        fun safeOf(value: String): StatusUser? = 
+            runCatching { of(value) }.getOrNull()
+        
+        fun columnType() = RestrictedStringColumnType(
+            allowed = ALLOWED,
+            typeName = NAME,
+            factory = ::of,
+            valueExtractor = { it.value }
+        )
     }
 }
-class StatusUserColumnType : StringColumnType() {
-    override fun sqlType(): String = "VARCHAR(20)"
-
-    override fun valueFromDB(value: Any): StatusUser {
-        val str = when (value) {
-            is String -> value
-            is ByteArray -> String(value, Charsets.UTF_8)
-            else -> value.toString()
-        }
-        return StatusUser.of(str)
-    }
-
-    override fun notNullValueToDB(value: Any): Any =
-        (value as? StatusUser)?.value ?: value.toString()
-}
-
 // Кастомный класс status_node для VPN_nodes_tables
-@JvmInLine
+@JvmInline
 value class StatusNode private constructor(val value: String) {
     companion object {
         private val ALLOWED = setOf("ACTIVE", "INACTIVE", "PROBLEM", "STOP")
-
+        private const val NAME = "StatusNode"
+        
         fun of(value: String): StatusNode {
-            require(value in ALLOWED) { "Invalid status: $value" }
+            require(value in ALLOWED) { "Invalid $NAME: '$value'. Allowed: $ALLOWED" }
             return StatusNode(value)
         }
-
-        fun safeOf(value: String): StatusNode? =
-            if (value in ALLOWED) StatusNode(value) else null
+        
+        fun safeOf(value: String): StatusNode? = 
+            runCatching { of(value) }.getOrNull()
+        
+        fun columnType() = RestrictedStringColumnType(
+            allowed = ALLOWED,
+            typeName = NAME,
+            factory = ::of,
+            valueExtractor = { it.value }
+        )
     }
-}
-class StatusNodeColumnType : StringColumnType() {
-    override fun sqlType(): String = "VARCHAR(20)"
-
-    override fun valueFromDB(value: Any): StatusNode {
-        val str = when (value) {
-            is String -> value
-            is ByteArray -> String(value, Charsets.UTF_8)
-            else -> value.toString()
-        }
-        return StatusNode.of(str)
-    }
-
-    override fun notNullValueToDB(value: Any): Any =
-        (value as? StatusNode)?.value ?: value.toString()
 }
 
 
@@ -108,7 +127,7 @@ object Users_tables : IntIdTable("users") {
     // Конфигурации
     val configs     = optReference("configs", Issued_configs_tables.id, ReferenceOption.CASCADE, ReferenceOption.CASCADE)
     // Состояние
-    val status      = custom("status_user", StatusUserColumnType()).nullable()
+    val status: Column<StatusUser> = Column(this, "status", StatusUser.columnType())
     // Текущий сервер
     val server      = optReference("server", VPN_nodes_tables.id, ReferenceOption.CASCADE, ReferenceOption.CASCADE)
     // Маршрутизация
@@ -120,7 +139,7 @@ object VPN_nodes_tables : IntIdTable("vpn_nodes") {
     val region  = varchar("region", MAX_VARCHAR_LENGTH)     // Регион сервера
     val address = varchar("address", 15)                    // IP-адрес сервера
     // Состояние сервера
-    val status  = custom("status_node", StatusNodeColumnType()).nullable()
+    val status: Column<StatusNode> = Column(this, "status", StatusNode.columnType())
     val online  = integer("online").default(0)              // Количество клиентов
 }
 
@@ -152,8 +171,8 @@ object Issued_configs_tables : IntIdTable("issued_configs") {
 object Traffic_use_tables : IntIdTable("traffic") {
     // ID пользователя
     val user    = optReference("user", Users_tables.id, ReferenceOption.CASCADE, ReferenceOption.CASCADE)
-    val limit   = integer("limit").nullable()
-    val current = float("current_limit").default(0)    
+    val limit   = float("limit").nullable()
+    val current = double("current_limit").default(0.0)    
 }
 
 

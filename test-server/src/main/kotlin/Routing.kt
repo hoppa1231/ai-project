@@ -12,7 +12,6 @@ fun Application.configureRouting() {
 
 
         get("/vpn/nodes") { // Список доступных серверов
-            val nodes
             call.respondText("доступные сервера: МАЙНКРАФТ")
         }
         get("/policy/current") {
@@ -36,6 +35,7 @@ fun Application.configureRouting() {
         // ------ //
         // CRUD
         get("/users/info"){
+            /*
             val id = call.parameters["id"]?.toIntOrNull() 
             ?: return@get call.respond(HttpStatusCode.BadRequest, "...")
             
@@ -48,7 +48,7 @@ fun Application.configureRouting() {
                 "id"    to user[Users_table.id],
                 "login" to user[Users_table.login],
                 "email" to user[Users_table.status]?.value
-            ))
+            )) */
         }   
         
     }

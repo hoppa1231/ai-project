@@ -11,7 +11,7 @@ fun main(args: Array<String>) {
 }
 
 fun Application.module() {
-    /*
+    
     // Подключение к БД на PostgreSql
     val config = HikariConfig().apply {
         jdbcUrl = "jdbc:postgresql://localhost:5432/db"
@@ -24,9 +24,9 @@ fun Application.module() {
     }   
     val dataSource = HikariDataSource(config)
     val postgresqldb = Database.connect(dataSource)
-    */
+    
     // Подключение к временной БД для тестов
-    Database.connect("jdbc:h2:mem:test", driver = "org.h2.Driver")
+    // Database.connect("jdbc:h2:mem:test", driver = "org.h2.Driver")
     configureRouting()
     configureDatabases()
 }
