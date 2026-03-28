@@ -39,17 +39,29 @@ class RestrictedStringColumnType<T : Any>(
     override fun sqlType(): String = "VARCHAR(50)"
     
     override fun valueFromDB(value: Any): T {
+        if (value is String) {
+            require(value in allowed) {
+                "Invalid $typeName: '$value'. Allowed: $allowed"
+            }
+            return factory(value)
+        }
+        
+        @Suppress("UNCHECKED_CAST")
+        if (value::class.simpleName == typeName) {
+            return value as T
+        }
+        
         val str = when (value) {
-            is String -> value
             is ByteArray -> String(value, Charsets.UTF_8)
             is Char -> value.toString()
             else -> value.toString()
         }
+        
         require(str in allowed) {
             "Invalid $typeName: '$str'. Allowed: $allowed"
         }
         return factory(str)
-    }
+}
     
     override fun notNullValueToDB(value: T): Any = 
         valueExtractor(value)
@@ -59,8 +71,8 @@ class RestrictedStringColumnType<T : Any>(
 }
 
 // Кастомный тип status_user для Users_tables
-@JvmInline
-value class StatusUser private constructor(val value: String) {
+class StatusUser private constructor(val value: String) {
+    override fun toString(): String = value
     companion object {
         private val ALLOWED = setOf("ONLINE", "OFFLINE", "FROZED")
         private const val NAME = "StatusUser"
@@ -82,8 +94,8 @@ value class StatusUser private constructor(val value: String) {
     }
 }
 // Кастомный класс status_node для VPN_nodes_tables
-@JvmInline
-value class StatusNode private constructor(val value: String) {
+class StatusNode private constructor(val value: String) {
+    override fun toString(): String = value
     companion object {
         private val ALLOWED = setOf("ACTIVE", "INACTIVE", "PROBLEM", "STOP")
         private const val NAME = "StatusNode"
@@ -127,7 +139,7 @@ object Users_tables : IntIdTable("users") {
     // Конфигурации
     val configs     = optReference("configs", Issued_configs_tables.id, ReferenceOption.CASCADE, ReferenceOption.CASCADE)
     // Состояние
-    val status: Column<StatusUser> = Column(this, "status", StatusUser.columnType())
+    val status      = registerColumn("status", StatusUser.columnType())
     // Текущий сервер
     val server      = optReference("server", VPN_nodes_tables.id, ReferenceOption.CASCADE, ReferenceOption.CASCADE)
     // Маршрутизация
@@ -136,10 +148,10 @@ object Users_tables : IntIdTable("users") {
 
 // Доступные "VPN-сети"
 object VPN_nodes_tables : IntIdTable("vpn_nodes") {
-    val region  = varchar("region", MAX_VARCHAR_LENGTH)     // Регион сервера
-    val address = varchar("address", 15)                    // IP-адрес сервера
+    val region  = varchar("region", MAX_VARCHAR_LENGTH).default("none")     // Регион сервера
+    val address = varchar("address", 15).default("none")                    // IP-адрес сервера
     // Состояние сервера
-    val status: Column<StatusNode> = Column(this, "status", StatusNode.columnType())
+    val status  = registerColumn("status", StatusNode.columnType())
     val online  = integer("online").default(0)              // Количество клиентов
 }
 

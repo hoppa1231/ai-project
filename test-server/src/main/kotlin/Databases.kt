@@ -9,27 +9,76 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 fun Application.configureDatabases() {
     transaction {
         addLogger(StdOutSqlLogger)  // Создаем логгирование
-        SchemaUtils.create(Users_tables)   // Создание конкретной таблицы
-        SchemaUtils.create(VPN_nodes_tables)
-        SchemaUtils.create(Node_clients_tables)
-        SchemaUtils.create(Policies_tables)
-        SchemaUtils.create(Issued_configs_tables)
-        SchemaUtils.create(Traffic_use_tables)
-        /*
+        SchemaUtils.drop(
+            Traffic_use_tables,
+            Issued_configs_tables,
+            Policies_tables,
+            Node_clients_tables,
+            Users_tables,
+            VPN_nodes_tables
+        )
+        SchemaUtils.create(
+            VPN_nodes_tables,  // создаём сначала таблицы, на которые есть ссылки
+            Users_tables,
+            Node_clients_tables,
+            Policies_tables,
+            Issued_configs_tables,
+            Traffic_use_tables
+        )
+            
         // Метод для создания новой записи - new()
-        val task1 = FirstRel.new {
-            title = "Raki"
-            description = "S jenei snyali"
+        val user1 = Users_table.new {
+            login       = "gandon"
+            password    = "YagaNdon2004"
+            status      = StatusUser.of("ONLINE")
         }
 
-        val task2 = FirstRel.new {
-            title = "Bipki"
-            description = "Ososesh - skaju"
-            amount = 20
+        val user2 = Users_table.new {
+            login       = "yasha"
+            password    = "YashaLava1984"
+            status      = StatusUser.of("FROZED")
+        }
+
+        val chikibryakiya = VPN_nodes_table.new {
+            region  = "ru"
+            address = "195.231.203.10"
+            status  = StatusNode.of("ACTIVE")
+            online  = 12323
         }
 
         // Обращение такое же, как без DAO
-        println("Sozdal govno s id ${task1.id} ei ${task2.id}")
+        println("id ${user1.id} ei ${user2.id}, name ${user1.login} ei ${user2.login}\n")
+        println("status of user1: ${user1.status}, his servers: ${user1.server}\n")
+
+        user1.server = chikibryakiya.id
+
+        val chikibryakiya_user1_traf = Node_clients_table.new {
+            server = chikibryakiya.id
+            client = "14881337"
+        }
+
+        val route_to_germaniya = Policies_table.new {
+            filename    = "ZAHVATI_GERMANIYU"
+            user        = user2.id
+        }
+
+        val config_g = Issued_configs_table.new {
+            version     = 12
+            name        = "svo"
+            server      = chikibryakiya.id
+        }
+
+        val user2traffic = Traffic_use_table.new {
+            user        = user2.id
+            limit       = null
+        }
+
+        println("\n\nChikibryakiya ID: ${chikibryakiya.id}, region: ${chikibryakiya.region}, status: ${chikibryakiya.status} now user1 server is: ${user1.server}\n")
+        println("Known traffic of server with id ${chikibryakiya_user1_traf.server}")
+        println("Route: ${route_to_germaniya.user}\n")
+        println("Created config on server with id: ${config_g.server}, version is ${config_g.version}\n")
+        println("Limit for user2 with ID ${user2traffic.user} is ${user2traffic.limit}")
+        /*
         // Методом find() выполняем запрос, который ищет все задачи с полем isCompleted = true
         // преобразуя их в список.
         val completed = FirstRel.find { FirstRels.amount eq 20 }.toList()
