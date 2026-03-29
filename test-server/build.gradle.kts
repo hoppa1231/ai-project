@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.ktor)
+    kotlin("plugin.serialization") version "2.2.21"
 }
 
 group = "com.example"
@@ -33,6 +34,9 @@ dependencies {
     // БД
     implementation(libs.postgresql)
     implementation(libs.hikaricp)
+    // Сериализация и json
+    implementation("io.ktor:ktor-server-content-negotiation:3.0.0")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.0")
 
     implementation(libs.h2)
 }

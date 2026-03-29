@@ -2,6 +2,9 @@ package com.example
 
 import io.ktor.server.application.*
 
+import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.serialization.kotlinx.json.*
+
 import org.jetbrains.exposed.v1.jdbc.Database
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
@@ -12,6 +15,10 @@ fun main(args: Array<String>) {
 
 fun Application.module() {
     
+    install(ContentNegotiation) {
+        json()
+    }
+
     // Подключение к БД на PostgreSql
     val config = HikariConfig().apply {
         jdbcUrl = "jdbc:postgresql://localhost:5432/db"
