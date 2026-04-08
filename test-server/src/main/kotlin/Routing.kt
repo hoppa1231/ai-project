@@ -8,11 +8,13 @@ import io.ktor.http.*
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlinx.serialization.Serializable
+import org.mindrot.jbcrypt.BCrypt
 
 @Serializable
 data class UserResponse(
     val id: Int,
     val login: String,
+    val password: String,
     val status: String = "OFFLINE"
 )
 
@@ -98,6 +100,8 @@ data class TrafficRequest(
     val current: Double
 )
 
+private fun hashPassword(password: String): String = BCrypt.hashpw(password, BCrypt.gensalt())
+
 fun Application.configureRouting() {
     routing {
         // Operations with DB [create]
@@ -109,7 +113,7 @@ fun Application.configureRouting() {
             call.respondText("доступные сервера: МАЙНКРАФТ")
         }
         get("/policy/current") {
-            call.respondText("политика: ДЛЯ ДОЛБАЕБОВ")
+            call.respondText("политика: ДЛЯ ОДАРЁННЫХ")
         }
         post("/auth/register"){
             call.respondText("зарегестрируйся: В МАКСЕ")
@@ -138,6 +142,7 @@ fun Application.configureRouting() {
                         UserResponse(
                             id = it.id.value,
                             login = it.login,
+                            password = it.password,
                             status = it.status.value
                         )
                     }
@@ -157,6 +162,7 @@ fun Application.configureRouting() {
             call.respond(UserResponse(
                 id = user.id.value,
                 login = user.login,
+                password = user.password,
                 status = user.status.value
             ))
         }
@@ -170,7 +176,7 @@ fun Application.configureRouting() {
             val newUser = transaction {
                 Users_table.new {
                     login    = body.login
-                    password = body.password
+                    password = hashPassword(body.password)
                     this.status = status
                 }
             }
@@ -190,7 +196,7 @@ fun Application.configureRouting() {
             val updated = transaction {
                 val user = Users_table.findById(id) ?: return@transaction null
                 user.login = body.login
-                user.password = body.password
+                user.password = hashPassword(body.password)
                 user.status = status
                 user
             } ?: return@put call.respond(HttpStatusCode.NotFound, "User not found")
@@ -198,6 +204,7 @@ fun Application.configureRouting() {
             call.respond(HttpStatusCode.OK, UserResponse(
                 id = updated.id.value,
                 login = updated.login,
+                password = updated.password,
                 status = updated.status.value
             ))
         }

@@ -5,6 +5,9 @@ import io.ktor.server.application.*
 import org.jetbrains.exposed.v1.core.*              // Зависимости для Exposed'а
 import org.jetbrains.exposed.v1.jdbc.SchemaUtils
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.mindrot.jbcrypt.BCrypt
+
+private fun hashPassword(password: String): String = BCrypt.hashpw(password, BCrypt.gensalt())
 
 fun Application.configureDatabases() {
     transaction {
@@ -28,14 +31,14 @@ fun Application.configureDatabases() {
             
         // Метод для создания новой записи - new()
         val user1 = Users_table.new {
-            login       = "gandon"
-            password    = "YagaNdon2004"
+            login       = "glack"
+            password    = hashPassword("YashaNyasha2004")
             status      = StatusUser.of("ONLINE")
         }
 
         val user2 = Users_table.new {
             login       = "yasha"
-            password    = "YashaLava1984"
+            password    = hashPassword("YashaLuchshiy1984")
             status      = StatusUser.of("FROZED")
         }
 

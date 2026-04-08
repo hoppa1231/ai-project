@@ -37,6 +37,7 @@ dependencies {
     // Сериализация и json
     implementation("io.ktor:ktor-server-content-negotiation:3.0.0")
     implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.0")
+    implementation("org.mindrot:jbcrypt:0.4")
 
     implementation(libs.h2)
 }
