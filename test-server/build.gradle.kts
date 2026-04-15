@@ -39,5 +39,10 @@ dependencies {
     implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.0")
     implementation("org.mindrot:jbcrypt:0.4")
 
+    // JWT + CORS
+    implementation("io.ktor:ktor-server-auth:3.0.0")
+    implementation("io.ktor:ktor-server-auth-jwt:3.0.0")
+    implementation("io.ktor:ktor-server-cors:3.0.0")
+
     implementation(libs.h2)
 }

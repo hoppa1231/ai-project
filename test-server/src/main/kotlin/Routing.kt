@@ -1,11 +1,17 @@
 package com.example
 
+import com.auth0.jwt.JWT
+import com.auth0.jwt.algorithms.Algorithm
 import io.ktor.server.application.*
+import io.ktor.server.auth.*
+import io.ktor.server.auth.jwt.*
 import io.ktor.server.response.*
 import io.ktor.server.request.receive
 import io.ktor.server.routing.*
 import io.ktor.http.*
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.Op
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlinx.serialization.Serializable
 import org.mindrot.jbcrypt.BCrypt
@@ -22,7 +28,24 @@ data class UserResponse(
 data class UserRequest(
     val login: String,
     val password: String,
-    val status: String 
+    val status: String
+)
+
+@Serializable
+data class AuthRequest(
+    val login: String,
+    val password: String
+)
+
+@Serializable
+data class AuthResponse(
+    val accessToken: String,
+    val refreshToken: String
+)
+
+@Serializable
+data class RefreshRequest(
+    val refreshToken: String
 )
 
 @Serializable
@@ -103,23 +126,73 @@ data class TrafficRequest(
 private fun hashPassword(password: String): String = BCrypt.hashpw(password, BCrypt.gensalt())
 
 fun Application.configureRouting() {
+    val cfg = jwtConfig()
+
     routing {
-        // Operations with DB [create]
-        
-        
+        // Auth (публичные эндпоинты)
+        post("/auth/register") {
+            val body = call.receive<AuthRequest>()
 
+            val exists = transaction { Users_table.find { Users_tables.login eq body.login }.firstOrNull() }
+            if (exists != null) return@post call.respond(HttpStatusCode.Conflict, "Login already taken")
 
-        get("/vpn/nodes") { // Список доступных серверов
+            val newUser = transaction {
+                Users_table.new {
+                    login    = body.login
+                    password = hashPassword(body.password)
+                    status   = StatusUser.of("OFFLINE")
+                }
+            }
+
+            val accessToken  = generateAccessToken(cfg, newUser.id.value, newUser.login)
+            val refreshToken = generateRefreshToken(cfg, newUser.id.value)
+            call.respond(HttpStatusCode.Created, AuthResponse(accessToken, refreshToken))
+        }
+
+        post("/auth/login") {
+            val body = call.receive<AuthRequest>()
+
+            val user = transaction { Users_table.find { Users_tables.login eq body.login }.firstOrNull() }
+                ?: return@post call.respond(HttpStatusCode.Unauthorized, "Invalid credentials")
+
+            if (!BCrypt.checkpw(body.password, user.password))
+                return@post call.respond(HttpStatusCode.Unauthorized, "Invalid credentials")
+
+            val accessToken  = generateAccessToken(cfg, user.id.value, user.login)
+            val refreshToken = generateRefreshToken(cfg, user.id.value)
+            call.respond(AuthResponse(accessToken, refreshToken))
+        }
+
+        post("/auth/refresh") {
+            val body = call.receive<RefreshRequest>()
+
+            val decoded = runCatching {
+                JWT.require(Algorithm.HMAC256(cfg.secret))
+                    .withIssuer(cfg.issuer)
+                    .withAudience(cfg.audience)
+                    .withClaim("type", "refresh")
+                    .build()
+                    .verify(body.refreshToken)
+            }.getOrNull() ?: return@post call.respond(HttpStatusCode.Unauthorized, "Invalid refresh token")
+
+            val userId = decoded.getClaim("userId").asInt()
+            val user = transaction { Users_table.findById(userId) }
+                ?: return@post call.respond(HttpStatusCode.Unauthorized, "User not found")
+
+            val accessToken  = generateAccessToken(cfg, user.id.value, user.login)
+            val refreshToken = generateRefreshToken(cfg, user.id.value)
+            call.respond(AuthResponse(accessToken, refreshToken))
+        }
+
+        // ------ //
+        // CRUD (защищено JWT)
+        authenticate("auth-jwt") {
+
+        get("/vpn/nodes") {
             call.respondText("доступные сервера: МАЙНКРАФТ")
         }
         get("/policy/current") {
             call.respondText("политика: ДЛЯ ОДАРЁННЫХ")
-        }
-        post("/auth/register"){
-            call.respondText("зарегестрируйся: В МАКСЕ")
-        }
-        post("/auth/login"){
-            call.respondText("залогинься: В ГОСУСЛУГАХ")
         }
         post("/devices/bind"){
             call.respondText("мобилки компутеры аппараты жизнеобеспечения")
@@ -130,8 +203,7 @@ fun Application.configureRouting() {
         post("/telemetry"){
             call.respondText("телеметрия: ИБО ТОК ТЕЛЕК ОСТАЛСЯ")
         }
-        // ------ //
-        // CRUD
+
         // Пользователи
         get("/users") {
             val users = transaction {
@@ -728,7 +800,8 @@ fun Application.configureRouting() {
             if (deleted) call.respondText("Traffic deleted", ContentType.Text.Plain, HttpStatusCode.OK)
             else call.respond(HttpStatusCode.NotFound, "Traffic not found")
         }
-        
+
+        } // end authenticate("auth-jwt")
     }
 }
 

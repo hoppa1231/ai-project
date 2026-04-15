@@ -19,6 +19,9 @@ fun Application.module() {
         json()
     }
 
+    configureCors()
+    configureSecurity()
+
     // Подключение к БД на PostgreSql
     val config = HikariConfig().apply {
         jdbcUrl = "jdbc:postgresql://localhost:5432/db"

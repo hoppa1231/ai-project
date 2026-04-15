@@ -4,3 +4,11 @@ ktor:
             - com.example.ApplicationKt.module
     deployment:
         port: 8080
+
+jwt:
+    secret: "change-me-to-a-long-random-secret-in-production"
+    issuer: "vpn-service"
+    audience: "vpn-clients"
+    realm: "vpn"
+    accessTokenExpiry: 900000      # 15 минут в мс
+    refreshTokenExpiry: 2592000000 # 30 дней в мс
