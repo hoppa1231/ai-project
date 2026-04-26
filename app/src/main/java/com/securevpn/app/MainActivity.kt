@@ -38,10 +38,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -58,6 +60,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.securevpn.app.data.BackendApi
 import com.securevpn.app.ui.theme.AccentBlue
 import com.securevpn.app.ui.theme.AccentGreen
 import com.securevpn.app.ui.theme.AccentPurple
@@ -69,6 +72,7 @@ import com.securevpn.app.ui.theme.GlassSurface
 import com.securevpn.app.ui.theme.SecureVpnTheme
 import com.securevpn.app.ui.theme.TextPrimary
 import com.securevpn.app.ui.theme.TextSecondary
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
@@ -88,6 +92,14 @@ class MainActivity : ComponentActivity() {
 private fun VpnHomeScreen() {
     var connected by rememberSaveable { mutableStateOf(false) }
     var swipeProgress by remember { mutableFloatStateOf(0f) }
+    var serverStatus by remember { mutableStateOf("Loading server list...") }
+    var connectionStatus by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        serverStatus = runCatching { BackendApi.getVpnNodesText() }
+            .getOrElse { "API error: ${it.message.orEmpty()}" }
+    }
 
     val progressAnimated by animateFloatAsState(
         targetValue = swipeProgress,
@@ -171,12 +183,18 @@ private fun VpnHomeScreen() {
                 progress = progressAnimated,
                 lockColor = lockColor,
                 onConnect = {
-                    connected = true
-                    swipeProgress = 0f
+                    scope.launch {
+                        connectionStatus = "Requesting config..."
+                        connectionStatus = runCatching { BackendApi.issueVpnConfigText() }
+                            .getOrElse { "API error: ${it.message.orEmpty()}" }
+                        connected = true
+                        swipeProgress = 0f
+                    }
                 },
                 onDisconnect = {
                     connected = false
                     swipeProgress = 0f
+                    connectionStatus = null
                 },
                 onProgressChange = { swipeProgress = it }
             )
@@ -203,10 +221,10 @@ private fun VpnHomeScreen() {
             )
 
             Spacer(modifier = Modifier.weight(1f))
-            ServerCard()
+            ServerCard(serverStatus = serverStatus)
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = if (connected) "You are protected" else "Swipe up and hold to activate protection",
+                text = connectionStatus ?: if (connected) "You are protected" else "Swipe up and hold to activate protection",
                 color = TextSecondary,
                 fontSize = 14.sp,
                 modifier = Modifier.fillMaxWidth(),
@@ -219,6 +237,19 @@ private fun VpnHomeScreen() {
 
 @Composable
 private fun HeaderRow(connected: Boolean) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (connected) Color(0xFF0B4C35) else AccentWarning)
+            .padding(horizontal = 12.dp, vertical = 2.dp)
+    ) {
+        Text(
+            text = if (connected) "Protected" else "Unprotected",
+            color = if (connected) AccentGreen else Color(0xFF8C98B6),
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth()
@@ -242,19 +273,7 @@ private fun HeaderRow(connected: Boolean) {
         }
 
         Spacer(modifier = Modifier.weight(1f))
-        Box(
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(if (connected) Color(0xFF0B4C35) else AccentWarning)
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-        ) {
-            Text(
-                text = if (connected) "Protected" else "Unprotected",
-                color = if (connected) AccentGreen else Color(0xFF8C98B6),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium
-            )
-        }
+
     }
 }
 
@@ -337,6 +356,7 @@ private fun LockControl(
     onProgressChange: (Float) -> Unit
 ) {
     val threshold = 220f
+    var dragProgress by remember { mutableFloatStateOf(0f) }
 
     Box(
         modifier = Modifier
@@ -360,23 +380,39 @@ private fun LockControl(
                 }
                 .then(
                     if (!connected) {
-                        Modifier.pointerInput(Unit) {
-                            detectVerticalDragGestures(
-                                onVerticalDrag = { change, dragAmount ->
-                                    change.consume()
-                                    val delta = (-dragAmount / threshold).coerceIn(-1f, 1f)
-                                    onProgressChange((progress + delta).coerceIn(0f, 1f))
-                                },
-                                onDragEnd = {
-                                    if (progress >= 0.92f) {
-                                        onConnect()
-                                    } else {
+                        Modifier
+                            .clickable { onConnect() }
+                            .pointerInput(Unit) {
+                                detectVerticalDragGestures(
+                                    onDragStart = {
+                                        dragProgress = progress
+                                    },
+                                    onVerticalDrag = { change, dragAmount ->
+                                        change.consume()
+                                        if (dragProgress >= 1f && dragAmount < 0f) return@detectVerticalDragGestures
+
+                                        val delta = (-dragAmount / threshold).coerceIn(-1f, 1f)
+                                        dragProgress = (dragProgress + delta).coerceIn(0f, 1f)
+                                        onProgressChange(dragProgress)
+
+                                        if (dragProgress >= 1f) {
+                                            onConnect()
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        if (dragProgress >= 0.92f) {
+                                            onConnect()
+                                        } else {
+                                            dragProgress = 0f
+                                            onProgressChange(0f)
+                                        }
+                                    },
+                                    onDragCancel = {
+                                        dragProgress = 0f
                                         onProgressChange(0f)
                                     }
-                                },
-                                onDragCancel = { onProgressChange(0f) }
-                            )
-                        }
+                                )
+                            }
                     } else {
                         Modifier.clickable { onDisconnect() }
                     }
@@ -406,7 +442,7 @@ private fun LockControl(
 }
 
 @Composable
-private fun ServerCard() {
+private fun ServerCard(serverStatus: String) {
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = GlassSurface.copy(alpha = 0.95f)),
@@ -422,7 +458,7 @@ private fun ServerCard() {
             Spacer(modifier = Modifier.width(10.dp))
             Column {
                 Text("Russia", color = TextPrimary, fontWeight = FontWeight.Medium, fontSize = 18.sp)
-                Text("Saint-Petersburg", color = TextSecondary, fontSize = 16.sp)
+                Text(serverStatus.ifBlank { "Saint-Petersburg" }, color = TextSecondary, fontSize = 16.sp)
             }
             Spacer(modifier = Modifier.weight(1f))
             Text("• 12 ms", color = AccentGreen, fontSize = 18.sp)
@@ -435,7 +471,6 @@ private fun ServerCard() {
 @Composable
 private fun VpnPreview() {
     SecureVpnTheme {
-        VpnHomeScreen()
+        ServerCard(serverStatus = "Saint-Petersburg")
     }
 }
-
