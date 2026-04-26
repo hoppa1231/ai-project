@@ -1,0 +1,27 @@
+ktor:
+  application:
+    modules:
+      - com.example.ApplicationKt.module
+  deployment:
+    host: 0.0.0.0
+    port: 8080
+
+app:
+  db:
+    url: ${?DB_URL}
+    user: ${?DB_USER}
+    password: ${?DB_PASSWORD}
+  jwt:
+    secret: ${?JWT_SECRET}
+    issuer: vpn-control-plane
+    audience: vpn-client
+    accessTtlSeconds: 900
+    refreshTtlDays: 30
+  security:
+    hashPepper: ${?HASH_PEPPER}
+  xray:
+    mode: ${?XRAY_MODE}
+  vpn:
+    issueTtlHours: 24
+  quota:
+    freeGbPerMonth: 10

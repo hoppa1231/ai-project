@@ -1,0 +1,28 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "VPN Control Plane API",
+    "version": "0.2.0"
+  },
+  "paths": {
+    "/auth/register": {"post": {"summary": "Register user", "responses": {"201": {"description": "Created"}}}},
+    "/auth/guest": {"post": {"summary": "Create guest user and bind first device", "responses": {"201": {"description": "Created"}}}},
+    "/auth/upgrade": {"post": {"summary": "Upgrade guest to registered", "responses": {"200": {"description": "OK"}}}},
+    "/auth/login": {"post": {"summary": "Login", "responses": {"200": {"description": "OK"}}}},
+    "/auth/refresh": {"post": {"summary": "Refresh token", "responses": {"200": {"description": "OK"}}}},
+    "/devices/bind": {"post": {"summary": "Bind device", "responses": {"200": {"description": "OK"}}}},
+    "/nodes": {"get": {"summary": "List nodes", "responses": {"200": {"description": "OK"}}}},
+    "/vpn/issue": {"post": {"summary": "Issue VPN config", "responses": {"200": {"description": "OK"}}}},
+    "/vpn/revoke": {"post": {"summary": "Revoke VPN config", "responses": {"200": {"description": "OK"}}}},
+    "/policy/current": {
+      "get": {"summary": "Get current policy", "responses": {"200": {"description": "OK"}}},
+      "put": {"summary": "Update current policy", "responses": {"200": {"description": "OK"}}}
+    },
+    "/quota/current": {"get": {"summary": "Get current quota status", "responses": {"200": {"description": "OK"}}}},
+    "/admin/nodes": {"post": {"summary": "Create node", "responses": {"201": {"description": "Created"}}}},
+    "/admin/nodes/{id}": {"patch": {"summary": "Patch node", "responses": {"200": {"description": "OK"}}}},
+    "/admin/quota/grant": {"post": {"summary": "Grant purchased quota", "responses": {"200": {"description": "OK"}}}},
+    "/health": {"get": {"summary": "Health check", "responses": {"200": {"description": "OK"}}}},
+    "/openapi.json": {"get": {"summary": "OpenAPI spec", "responses": {"200": {"description": "OK"}}}}
+  }
+}
