@@ -1,5 +1,3 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-
-    <style name="Theme.AndroidVPN" parent="android:Theme.Material.Light.NoActionBar" />
+﻿<resources>
+    <style name="Theme.SecureVpn" parent="@android:style/Theme.DeviceDefault.NoActionBar" />
 </resources>

@@ -1,21 +1,17 @@
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+﻿<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application
         android:allowBackup="true"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:icon="@android:drawable/ic_lock_lock"
+        android:label="SecureVPN"
+        android:roundIcon="@android:drawable/ic_lock_lock"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AndroidVPN">
+        android:theme="@style/Theme.SecureVpn">
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.AndroidVPN">
+            android:theme="@style/Theme.SecureVpn">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -25,3 +21,4 @@
     </application>
 
 </manifest>
+
