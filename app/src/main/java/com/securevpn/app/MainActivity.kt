@@ -55,12 +55,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.securevpn.app.data.BackendApi
+import com.securevpn.app.data.QuotaStatus
+import com.securevpn.app.data.VpnNode
 import com.securevpn.app.ui.theme.AccentBlue
 import com.securevpn.app.ui.theme.AccentGreen
 import com.securevpn.app.ui.theme.AccentPurple
@@ -73,6 +76,7 @@ import com.securevpn.app.ui.theme.SecureVpnTheme
 import com.securevpn.app.ui.theme.TextPrimary
 import com.securevpn.app.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
+import java.util.Locale
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
@@ -90,15 +94,32 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun VpnHomeScreen() {
+    val context = LocalContext.current
+    val api = remember { BackendApi(context) }
     var connected by rememberSaveable { mutableStateOf(false) }
     var swipeProgress by remember { mutableFloatStateOf(0f) }
     var serverStatus by remember { mutableStateOf("Loading server list...") }
     var connectionStatus by remember { mutableStateOf<String?>(null) }
+    var nodes by remember { mutableStateOf<List<VpnNode>>(emptyList()) }
+    var selectedNode by remember { mutableStateOf<VpnNode?>(null) }
+    var quota by remember { mutableStateOf<QuotaStatus?>(null) }
+    var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
-        serverStatus = runCatching { BackendApi.getVpnNodesText() }
-            .getOrElse { "API error: ${it.message.orEmpty()}" }
+        runCatching { api.bootstrap() }
+            .onSuccess { bootstrap ->
+                nodes = bootstrap.nodes
+                selectedNode = bootstrap.nodes.firstOrNull()
+                quota = bootstrap.quota
+                connected = bootstrap.activeConfigId != null
+                serverStatus = bootstrap.nodes.firstOrNull()?.let { "${it.region} | ${it.health}" }
+                    ?: "No VPN nodes configured"
+            }
+            .onFailure {
+                serverStatus = "API error: ${it.message.orEmpty()}"
+                connectionStatus = "Could not load API state"
+            }
     }
 
     val progressAnimated by animateFloatAsState(
@@ -160,7 +181,7 @@ private fun VpnHomeScreen() {
             AnimatedVisibility(visible = connected) {
                 Column {
                     Spacer(modifier = Modifier.height(12.dp))
-                    TrafficCard()
+                    TrafficCard(quota = quota)
                     Spacer(modifier = Modifier.height(12.dp))
                     StatsRow()
                 }
@@ -182,19 +203,51 @@ private fun VpnHomeScreen() {
                 connected = connected,
                 progress = progressAnimated,
                 lockColor = lockColor,
+                enabled = !busy,
                 onConnect = {
-                    scope.launch {
-                        connectionStatus = "Requesting config..."
-                        connectionStatus = runCatching { BackendApi.issueVpnConfigText() }
-                            .getOrElse { "API error: ${it.message.orEmpty()}" }
-                        connected = true
-                        swipeProgress = 0f
+                    if (!busy) {
+                        scope.launch {
+                            busy = true
+                            connectionStatus = "Requesting VPN config..."
+                            runCatching { api.issueVpnConfig(selectedNode?.region) }
+                                .onSuccess { issued ->
+                                    connected = true
+                                    swipeProgress = 0f
+                                    connectionStatus = "Config issued: ${issued.nodeName}"
+                                }
+                                .onFailure {
+                                    connected = false
+                                    swipeProgress = 0f
+                                    connectionStatus = "Connect failed: ${it.message.orEmpty()}"
+                                }
+                            runCatching { api.bootstrap() }.onSuccess { bootstrap ->
+                                nodes = bootstrap.nodes
+                                selectedNode = bootstrap.nodes.firstOrNull()
+                                quota = bootstrap.quota
+                                serverStatus = bootstrap.nodes.firstOrNull()?.let { "${it.region} | ${it.health}" }
+                                    ?: "No VPN nodes configured"
+                            }
+                            busy = false
+                        }
                     }
                 },
                 onDisconnect = {
-                    connected = false
-                    swipeProgress = 0f
-                    connectionStatus = null
+                    if (!busy) {
+                        scope.launch {
+                            busy = true
+                            connectionStatus = "Revoking VPN config..."
+                            runCatching { api.revokeActiveConfig() }
+                                .onSuccess {
+                                    connected = false
+                                    swipeProgress = 0f
+                                    connectionStatus = "Disconnected"
+                                }
+                                .onFailure {
+                                    connectionStatus = "Disconnect failed: ${it.message.orEmpty()}"
+                                }
+                            busy = false
+                        }
+                    }
                 },
                 onProgressChange = { swipeProgress = it }
             )
@@ -221,7 +274,7 @@ private fun VpnHomeScreen() {
             )
 
             Spacer(modifier = Modifier.weight(1f))
-            ServerCard(serverStatus = serverStatus)
+            ServerCard(node = selectedNode, serverStatus = serverStatus)
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = connectionStatus ?: if (connected) "You are protected" else "Swipe up and hold to activate protection",
@@ -278,7 +331,15 @@ private fun HeaderRow(connected: Boolean) {
 }
 
 @Composable
-private fun TrafficCard() {
+private fun TrafficCard(quota: QuotaStatus?) {
+    val totalGb = quota?.totalGb ?: 10.0
+    val usedGb = quota?.usedGb ?: 0.0
+    val remainingGb = quota?.remainingGb ?: totalGb
+    val progress = quota?.usedPercent ?: 0f
+    val usedText = String.format(Locale.US, "%.2f GB out of %.2f GB", usedGb, totalGb)
+    val remainingText = String.format(Locale.US, "Left: %.2f GB", remainingGb)
+    val percentText = "${(progress * 100).roundToInt()}%"
+
     Card(
         colors = CardDefaults.cardColors(containerColor = CardSurface.copy(alpha = 0.92f)),
         shape = RoundedCornerShape(18.dp),
@@ -290,7 +351,7 @@ private fun TrafficCard() {
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Traffic limit", color = TextPrimary, fontSize = 16.sp)
                 Spacer(modifier = Modifier.weight(1f))
-                Text("947.3 MB out of 10.0GB", color = TextSecondary, fontSize = 14.sp)
+                Text(usedText, color = TextSecondary, fontSize = 14.sp)
             }
             Spacer(modifier = Modifier.height(10.dp))
             Box(
@@ -302,7 +363,7 @@ private fun TrafficCard() {
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.097f)
+                        .fillMaxWidth(progress.coerceAtLeast(0.02f))
                         .height(6.dp)
                         .clip(CircleShape)
                         .background(Brush.horizontalGradient(listOf(AccentPurple, AccentBlue)))
@@ -310,9 +371,9 @@ private fun TrafficCard() {
             }
             Spacer(modifier = Modifier.height(6.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
-                Text("Left: 9.5 GB", color = TextSecondary, fontSize = 14.sp)
+                Text(remainingText, color = TextSecondary, fontSize = 14.sp)
                 Spacer(modifier = Modifier.weight(1f))
-                Text("9.7%", color = AccentGreen, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(percentText, color = AccentGreen, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -351,12 +412,14 @@ private fun LockControl(
     connected: Boolean,
     progress: Float,
     lockColor: Color,
+    enabled: Boolean,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
     onProgressChange: (Float) -> Unit
 ) {
     val threshold = 220f
     var dragProgress by remember { mutableFloatStateOf(0f) }
+    var connectTriggered by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -381,10 +444,17 @@ private fun LockControl(
                 .then(
                     if (!connected) {
                         Modifier
-                            .clickable { onConnect() }
-                            .pointerInput(Unit) {
+                            .clickable(enabled = enabled) {
+                                if (!connectTriggered) {
+                                    connectTriggered = true
+                                    onConnect()
+                                }
+                            }
+                            .pointerInput(enabled) {
+                                if (!enabled) return@pointerInput
                                 detectVerticalDragGestures(
                                     onDragStart = {
+                                        connectTriggered = false
                                         dragProgress = progress
                                     },
                                     onVerticalDrag = { change, dragAmount ->
@@ -396,11 +466,14 @@ private fun LockControl(
                                         onProgressChange(dragProgress)
 
                                         if (dragProgress >= 1f) {
+                                            if (connectTriggered) return@detectVerticalDragGestures
+                                            connectTriggered = true
                                             onConnect()
                                         }
                                     },
                                     onDragEnd = {
-                                        if (dragProgress >= 0.92f) {
+                                        if (dragProgress >= 0.92f && !connectTriggered) {
+                                            connectTriggered = true
                                             onConnect()
                                         } else {
                                             dragProgress = 0f
@@ -414,7 +487,7 @@ private fun LockControl(
                                 )
                             }
                     } else {
-                        Modifier.clickable { onDisconnect() }
+                        Modifier.clickable(enabled = enabled) { onDisconnect() }
                     }
                 ),
             contentAlignment = Alignment.Center
@@ -442,7 +515,11 @@ private fun LockControl(
 }
 
 @Composable
-private fun ServerCard(serverStatus: String) {
+private fun ServerCard(node: VpnNode?, serverStatus: String) {
+    val country = node?.countryCode?.takeIf { it.isNotBlank() } ?: "RU"
+    val title = node?.name?.takeIf { it.isNotBlank() } ?: "VPN node"
+    val subtitle = node?.let { "${it.region} | ${it.health} | load ${it.load}%" } ?: serverStatus
+
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = GlassSurface.copy(alpha = 0.95f)),
@@ -454,14 +531,14 @@ private fun ServerCard(serverStatus: String) {
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "RU", fontSize = 22.sp, color = TextPrimary, fontWeight = FontWeight.Bold)
+            Text(text = country.uppercase(Locale.US), fontSize = 22.sp, color = TextPrimary, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.width(10.dp))
             Column {
-                Text("Russia", color = TextPrimary, fontWeight = FontWeight.Medium, fontSize = 18.sp)
-                Text(serverStatus.ifBlank { "Saint-Petersburg" }, color = TextSecondary, fontSize = 16.sp)
+                Text(title, color = TextPrimary, fontWeight = FontWeight.Medium, fontSize = 18.sp)
+                Text(subtitle.ifBlank { "No VPN nodes configured" }, color = TextSecondary, fontSize = 16.sp)
             }
             Spacer(modifier = Modifier.weight(1f))
-            Text("• 12 ms", color = AccentGreen, fontSize = 18.sp)
+            Text("• API", color = AccentGreen, fontSize = 18.sp)
             Icon(Icons.Rounded.ArrowDropDown, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(26.dp))
         }
     }
@@ -471,6 +548,6 @@ private fun ServerCard(serverStatus: String) {
 @Composable
 private fun VpnPreview() {
     SecureVpnTheme {
-        ServerCard(serverStatus = "Saint-Petersburg")
+        ServerCard(node = null, serverStatus = "Saint-Petersburg")
     }
 }
