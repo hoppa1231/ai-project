@@ -34,8 +34,8 @@ class QuotaRepository(private val dsl: DSLContext) {
             FROM traffic_stats ts
             JOIN clients c ON c.id = ts.client_id
             WHERE c.user_id = ?
-              AND ts.period_start >= ?
-              AND ts.period_start < ?
+              AND ts.period_start >= ?::timestamptz
+              AND ts.period_start < ?::timestamptz
             """.trimIndent(),
             userId,
             cycleStart.atStartOfDay().atOffset(ZoneOffset.UTC),
