@@ -79,6 +79,16 @@ class UserRepository(private val dsl: DSLContext) {
         return mapUser(rec)
     }
 
+    fun findAll(): List<UserEntity> {
+        return dsl.fetch(
+            """
+            SELECT id, email, password_hash, role, status, account_type
+            FROM users
+            ORDER BY created_at DESC
+            """.trimIndent()
+        ).map { mapUser(it) }
+    }
+
     fun touchLastLogin(id: UUID) {
         dsl.execute("UPDATE users SET last_login_at = now() WHERE id = ?", id)
     }

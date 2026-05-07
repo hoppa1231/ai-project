@@ -14,6 +14,7 @@ import com.example.modules.nodes.configureNodeRoutes
 import com.example.modules.openapi.configureOpenApiRoutes
 import com.example.modules.policy.configurePolicyRoutes
 import com.example.modules.quota.configureQuotaRoutes
+import com.example.modules.users.configureUserRoutes
 import com.example.modules.vpn.configureVpnRoutes
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
@@ -89,6 +90,7 @@ fun Application.module() {
     }
 
     configureAuthRoutes(context)
+    configureUserRoutes(context)
     configureDeviceRoutes(context)
     configureNodeRoutes(context)
     configureVpnRoutes(context)
