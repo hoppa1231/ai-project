@@ -1,0 +1,583 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "VPN Control Plane API",
+    "version": "0.2.0",
+    "description": "Control-plane API for SecureVPN Android client and admin operations."
+  },
+  "servers": [
+    {
+      "url": "https://tech-supp-test.ru",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    { "name": "Auth" },
+    { "name": "Devices" },
+    { "name": "Nodes" },
+    { "name": "VPN" },
+    { "name": "Policy" },
+    { "name": "Quota" },
+    { "name": "Admin" },
+    { "name": "System" }
+  ],
+  "paths": {
+    "/auth/guest": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Create guest user and bind first device",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/GuestAuthRequest" },
+              "example": {
+                "deviceFingerprint": "android-device-fingerprint",
+                "deviceName": "Pixel 8",
+                "platform": "android",
+                "appVersion": "0.1"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Guest session created",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "429": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RegisterRequest" },
+              "example": { "email": "user@example.com", "password": "password123" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthResponse" } } } },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" },
+              "example": { "email": "user@example.com", "password": "password123", "deviceId": "00000000-0000-0000-0000-000000000000" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthResponse" } } } },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Refresh token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RefreshRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthResponse" } } } },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/devices/bind": {
+      "post": {
+        "tags": ["Devices"],
+        "summary": "Bind device",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/BindDeviceRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BindDeviceResponse" } } } },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/nodes": {
+      "get": {
+        "tags": ["Nodes"],
+        "summary": "List available nodes",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/NodeResponse" }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/vpn/issue": {
+      "post": {
+        "tags": ["VPN"],
+        "summary": "Issue VPN config",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/IssueConfigRequest" },
+              "example": { "deviceId": "00000000-0000-0000-0000-000000000000", "region": "ru", "ttlHours": 24 }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IssueConfigResponse" } } } },
+          "401": { "$ref": "#/components/responses/Error" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/vpn/revoke": {
+      "post": {
+        "tags": ["VPN"],
+        "summary": "Revoke VPN config",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RevokeConfigRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RevokeConfigResponse" } } } },
+          "401": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/policy/current": {
+      "get": {
+        "tags": ["Policy"],
+        "summary": "Get current policy",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyResponse" } } } },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "put": {
+        "tags": ["Policy"],
+        "summary": "Update current policy",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/UpdatePolicyRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyResponse" } } } },
+          "401": { "$ref": "#/components/responses/Error" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/quota/current": {
+      "get": {
+        "tags": ["Quota"],
+        "summary": "Get current quota status",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/QuotaResponse" } } } },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/admin/nodes": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Create node",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateNodeRequest" } } }
+        },
+        "responses": {
+          "201": { "description": "Created" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/admin/nodes/{id}": {
+      "patch": {
+        "tags": ["Admin"],
+        "summary": "Patch node",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PatchNodeRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "OK" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/admin/quota/grant": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Grant purchased quota",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GrantQuotaRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GrantQuotaResponse" } } } },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Health check",
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HealthResponse" } } } }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": ["System"],
+        "summary": "OpenAPI spec",
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "API error",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ApiError" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "details": { "type": "object", "nullable": true },
+          "requestId": { "type": "string", "nullable": true }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "format": "password" }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "format": "password" },
+          "deviceId": { "type": "string", "format": "uuid", "nullable": true }
+        }
+      },
+      "GuestAuthRequest": {
+        "type": "object",
+        "required": ["deviceFingerprint", "deviceName", "platform"],
+        "properties": {
+          "deviceFingerprint": { "type": "string" },
+          "deviceName": { "type": "string" },
+          "platform": { "type": "string", "example": "android" },
+          "appVersion": { "type": "string", "nullable": true },
+          "publicKey": { "type": "string", "nullable": true }
+        }
+      },
+      "RefreshRequest": {
+        "type": "object",
+        "required": ["refreshToken"],
+        "properties": {
+          "refreshToken": { "type": "string" }
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "accessToken": { "type": "string" },
+          "refreshToken": { "type": "string", "nullable": true },
+          "expiresIn": { "type": "integer", "format": "int64" },
+          "tokenType": { "type": "string", "example": "Bearer" },
+          "deviceBound": { "type": "boolean" },
+          "accountType": { "type": "string", "example": "GUEST" },
+          "deviceId": { "type": "string", "format": "uuid", "nullable": true }
+        }
+      },
+      "BindDeviceRequest": {
+        "type": "object",
+        "required": ["deviceFingerprint", "deviceName", "platform"],
+        "properties": {
+          "deviceFingerprint": { "type": "string" },
+          "deviceName": { "type": "string" },
+          "platform": { "type": "string" },
+          "appVersion": { "type": "string", "nullable": true },
+          "publicKey": { "type": "string", "nullable": true }
+        }
+      },
+      "BindDeviceResponse": {
+        "type": "object",
+        "properties": {
+          "deviceId": { "type": "string", "format": "uuid" },
+          "status": { "type": "string" },
+          "accessToken": { "type": "string" },
+          "refreshToken": { "type": "string" },
+          "expiresIn": { "type": "integer", "format": "int64" }
+        }
+      },
+      "NodeResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "region": { "type": "string" },
+          "countryCode": { "type": "string" },
+          "hostname": { "type": "string" },
+          "port": { "type": "integer" },
+          "status": { "type": "string" },
+          "health": { "type": "string" },
+          "loadScore": { "type": "number" }
+        }
+      },
+      "IssueConfigRequest": {
+        "type": "object",
+        "required": ["deviceId"],
+        "properties": {
+          "deviceId": { "type": "string", "format": "uuid" },
+          "region": { "type": "string", "nullable": true },
+          "exitRegion": { "type": "string", "nullable": true },
+          "exitNodeId": { "type": "string", "format": "uuid", "nullable": true },
+          "routeMode": { "type": "string", "enum": ["SINGLE", "CASCADE"], "default": "CASCADE" },
+          "mode": { "type": "string", "enum": ["SINGLE", "CASCADE"], "nullable": true },
+          "ttlHours": { "type": "integer", "format": "int64", "nullable": true },
+          "forceRotate": { "type": "boolean", "default": false }
+        }
+      },
+      "IssueConfigResponse": {
+        "type": "object",
+        "properties": {
+          "configId": { "type": "string", "format": "uuid" },
+          "status": { "type": "string" },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "issuedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "revokedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "routeMode": { "type": "string", "enum": ["SINGLE", "CASCADE"] },
+          "node": { "$ref": "#/components/schemas/NodeRefResponse" },
+          "entryNode": { "$ref": "#/components/schemas/NodeRefResponse", "nullable": true },
+          "exitNode": { "$ref": "#/components/schemas/NodeRefResponse", "nullable": true },
+          "hops": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ConfigHopResponse" }
+          },
+          "vlessUri": { "type": "string", "nullable": true },
+          "clientConfig": { "type": "object", "nullable": true }
+        }
+      },
+      "ConfigHopResponse": {
+        "type": "object",
+        "properties": {
+          "index": { "type": "integer" },
+          "role": { "type": "string", "enum": ["ENTRY", "EXIT"] },
+          "node": { "$ref": "#/components/schemas/NodeRefResponse" },
+          "vlessUri": { "type": "string", "nullable": true }
+        }
+      },
+      "NodeRefResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "region": { "type": "string" }
+        }
+      },
+      "RevokeConfigRequest": {
+        "type": "object",
+        "required": ["configId"],
+        "properties": {
+          "configId": { "type": "string", "format": "uuid" },
+          "reason": { "type": "string", "default": "user_request" }
+        }
+      },
+      "RevokeConfigResponse": {
+        "type": "object",
+        "properties": {
+          "configId": { "type": "string", "format": "uuid" },
+          "status": { "type": "string" },
+          "revokedAt": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "PolicyResponse": {
+        "type": "object",
+        "properties": {
+          "version": { "type": "integer" },
+          "defaultRoute": { "type": "string", "example": "VPN" },
+          "includeApps": { "type": "array", "items": { "type": "string" } },
+          "excludeApps": { "type": "array", "items": { "type": "string" } },
+          "includeDomains": { "type": "array", "items": { "type": "string" } },
+          "excludeDomains": { "type": "array", "items": { "type": "string" } },
+          "hash": { "type": "string" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "UpdatePolicyRequest": {
+        "type": "object",
+        "required": ["ifVersion", "defaultRoute"],
+        "properties": {
+          "ifVersion": { "type": "integer" },
+          "defaultRoute": { "type": "string", "enum": ["VPN", "DIRECT"] },
+          "includeApps": { "type": "array", "items": { "type": "string" } },
+          "excludeApps": { "type": "array", "items": { "type": "string" } },
+          "includeDomains": { "type": "array", "items": { "type": "string" } },
+          "excludeDomains": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "QuotaResponse": {
+        "type": "object",
+        "properties": {
+          "accountType": { "type": "string" },
+          "cycleStart": { "type": "string", "format": "date" },
+          "cycleEnd": { "type": "string", "format": "date" },
+          "freeBytes": { "type": "integer", "format": "int64" },
+          "purchasedBytes": { "type": "integer", "format": "int64" },
+          "usedBytes": { "type": "integer", "format": "int64" },
+          "remainingBytes": { "type": "integer", "format": "int64" }
+        }
+      },
+      "CreateNodeRequest": {
+        "type": "object",
+        "required": ["name", "region", "countryCode", "hostname", "publicAddress", "publicPort", "inboundTag", "realityPublicKey", "realityShortId", "realitySni"],
+        "properties": {
+          "name": { "type": "string" },
+          "region": { "type": "string" },
+          "countryCode": { "type": "string" },
+          "hostname": { "type": "string" },
+          "publicAddress": { "type": "string" },
+          "publicPort": { "type": "integer" },
+          "inboundTag": { "type": "string" },
+          "realityPublicKey": { "type": "string" },
+          "realityShortId": { "type": "string" },
+          "realitySni": { "type": "string" },
+          "realityFingerprint": { "type": "string", "default": "chrome" },
+          "flow": { "type": "string", "nullable": true },
+          "alpn": { "type": "string", "nullable": true },
+          "grpcEndpoint": { "type": "string", "nullable": true },
+          "weight": { "type": "integer", "default": 100 },
+          "maxClients": { "type": "integer", "default": 1000 }
+        }
+      },
+      "PatchNodeRequest": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "nullable": true },
+          "weight": { "type": "integer", "nullable": true },
+          "maxClients": { "type": "integer", "nullable": true }
+        }
+      },
+      "GrantQuotaRequest": {
+        "type": "object",
+        "required": ["gb"],
+        "properties": {
+          "userId": { "type": "string", "format": "uuid", "nullable": true },
+          "email": { "type": "string", "format": "email", "nullable": true },
+          "gb": { "type": "integer", "format": "int64" },
+          "source": { "type": "string", "default": "purchase" },
+          "externalRef": { "type": "string", "nullable": true }
+        }
+      },
+      "GrantQuotaResponse": {
+        "type": "object",
+        "properties": {
+          "userId": { "type": "string", "format": "uuid" },
+          "accountType": { "type": "string" },
+          "cycleStart": { "type": "string", "format": "date" },
+          "cycleEnd": { "type": "string", "format": "date" },
+          "grantedGb": { "type": "integer", "format": "int64" },
+          "freeGb": { "type": "number" },
+          "purchasedGb": { "type": "number" },
+          "remainingGb": { "type": "number" }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "db": { "type": "string" },
+          "healthyNodes": { "type": "integer" },
+          "totalNodes": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,35 @@
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: vpn_cp
+      POSTGRES_USER: vpn
+      POSTGRES_PASSWORD: vpn
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vpn -d vpn_cp"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/vpn_cp
+      DB_USER: vpn
+      DB_PASSWORD: vpn
+      JWT_SECRET: change-this-secret
+      HASH_PEPPER: change-this-pepper
+      XRAY_MODE: stub
+    ports:
+      - "8080:8080"
+
+volumes:
+  pg_data:

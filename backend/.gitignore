@@ -1,7 +1,6 @@
 .gradle
 .env
 build/
-android-client.zip
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/

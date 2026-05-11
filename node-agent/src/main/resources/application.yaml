@@ -1,0 +1,17 @@
+ktor:
+  application:
+    modules:
+      - com.securevpn.agent.ApplicationKt.module
+  deployment:
+    host: 0.0.0.0
+    port: 9090
+
+agent:
+  token: ${?AGENT_TOKEN}
+  xui:
+    baseUrl: ${?THREE_XUI_BASE_URL}
+    username: ${?THREE_XUI_USERNAME}
+    password: ${?THREE_XUI_PASSWORD}
+    inboundId: ${?THREE_XUI_INBOUND_ID}
+    inboundMap: ${?THREE_XUI_INBOUND_MAP}
+    twoFactorCode: ${?THREE_XUI_2FA_CODE}
