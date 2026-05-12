@@ -6,6 +6,7 @@ import com.example.db.DatabaseFactory
 import com.example.db.repo.AuditRepository
 import com.example.db.repo.DeviceRepository
 import com.example.db.repo.NodeRepository
+import com.example.db.repo.NodeClientInventoryRepository
 import com.example.db.repo.PolicyRepository
 import com.example.db.repo.QuotaRepository
 import com.example.db.repo.RefreshTokenRepository
@@ -24,6 +25,7 @@ class AppContext(
     val users: UserRepository,
     val devices: DeviceRepository,
     val nodes: NodeRepository,
+    val nodeClients: NodeClientInventoryRepository,
     val policies: PolicyRepository,
     val quota: QuotaRepository,
     val refreshTokens: RefreshTokenRepository,
@@ -53,6 +55,7 @@ fun buildContext(config: AppConfig): AppContext {
         users = UserRepository(db.dsl),
         devices = DeviceRepository(db.dsl),
         nodes = NodeRepository(db.dsl),
+        nodeClients = NodeClientInventoryRepository(db.dsl),
         policies = PolicyRepository(db.dsl),
         quota = QuotaRepository(db.dsl),
         refreshTokens = RefreshTokenRepository(db.dsl),

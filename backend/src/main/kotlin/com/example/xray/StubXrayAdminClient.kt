@@ -18,4 +18,13 @@ class StubXrayAdminClient : XrayAdminClient {
         logger.debug("[stub-xray] ping node={}", node.name)
         return 5
     }
+
+    override fun listClients(node: NodeEntity): List<XrayNodeClient> {
+        logger.info("[stub-xray] listClients node={}", node.name)
+        return emptyList()
+    }
+
+    override fun updateClientTrafficLimit(node: NodeEntity, email: String, totalBytes: Long) {
+        logger.info("[stub-xray] updateClientTrafficLimit node={} email={} totalBytes={}", node.name, email, totalBytes)
+    }
 }

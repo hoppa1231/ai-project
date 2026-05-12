@@ -47,6 +47,13 @@ fun Application.module() {
             call.respond(HealthResponse(ok = true, xui = status))
         }
 
+        get("/v1/clients") {
+            call.requireAgentToken(config.agentToken)
+            val inboundTag = call.request.queryParameters["inboundTag"]
+            val inboundId = inboundTag?.let { config.inboundIdFor(it) }
+            call.respond(ClientsResponse(clients = xui.listClients(inboundId)))
+        }
+
         post("/v1/users/add") {
             call.requireAgentToken(config.agentToken)
             val body = call.receive<AddUserRequest>()
@@ -69,6 +76,18 @@ fun Application.module() {
             val inboundId = config.inboundIdFor(body.inboundTag)
             xui.deleteClientByEmail(inboundId = inboundId, email = body.email)
             call.respond(ProvisionResponse(status = "REVOKED", inboundId = inboundId, email = body.email))
+        }
+
+        post("/v1/users/update") {
+            call.requireAgentToken(config.agentToken)
+            val body = call.receive<UpdateUserRequest>()
+            val inboundId = config.inboundIdFor(body.inboundTag)
+            xui.updateClientTrafficLimit(
+                inboundId = inboundId,
+                email = body.email,
+                totalBytes = body.totalBytes
+            )
+            call.respond(UpdateUserResponse(status = "UPDATED", inboundId = inboundId, email = body.email))
         }
     }
 }
@@ -96,10 +115,29 @@ data class RemoveUserRequest(
 )
 
 @Serializable
+data class UpdateUserRequest(
+    val inboundTag: String? = null,
+    val email: String,
+    val totalBytes: Long
+)
+
+@Serializable
 data class ProvisionResponse(
     val status: String,
     val inboundId: Int,
     val email: String
+)
+
+@Serializable
+data class UpdateUserResponse(
+    val status: String,
+    val inboundId: Int,
+    val email: String
+)
+
+@Serializable
+data class ClientsResponse(
+    val clients: List<XuiClientSnapshot>
 )
 
 @Serializable

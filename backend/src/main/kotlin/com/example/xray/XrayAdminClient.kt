@@ -11,8 +11,26 @@ data class XrayUser(
     val expiresAt: Instant
 )
 
+data class XrayNodeClient(
+    val inboundId: Int,
+    val inboundRemark: String,
+    val inboundTag: String,
+    val email: String,
+    val uuid: String?,
+    val flow: String?,
+    val enabled: Boolean,
+    val totalBytes: Long,
+    val upBytes: Long,
+    val downBytes: Long,
+    val expiryTime: Long,
+    val limitIp: Int,
+    val subId: String?
+)
+
 interface XrayAdminClient {
     fun addUser(node: NodeEntity, user: XrayUser)
     fun removeUser(node: NodeEntity, email: String)
     fun ping(node: NodeEntity): Int
+    fun listClients(node: NodeEntity): List<XrayNodeClient>
+    fun updateClientTrafficLimit(node: NodeEntity, email: String, totalBytes: Long)
 }

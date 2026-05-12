@@ -119,6 +119,25 @@ data class ClientEntity(
     val flow: String?
 )
 
+data class NodeClientInventoryEntity(
+    val id: UUID,
+    val nodeId: UUID,
+    val inboundId: Int,
+    val inboundRemark: String,
+    val inboundTag: String,
+    val email: String,
+    val uuid: String?,
+    val flow: String?,
+    val enabled: Boolean,
+    val totalBytes: Long,
+    val upBytes: Long,
+    val downBytes: Long,
+    val expiryTime: Long,
+    val limitIp: Int,
+    val subId: String?,
+    val lastSyncedAt: Instant
+)
+
 data class QuotaSnapshot(
     val cycleStart: LocalDate,
     val cycleEnd: LocalDate,

@@ -14,4 +14,12 @@ class GrpcXrayAdminClient : XrayAdminClient {
     override fun ping(node: NodeEntity): Int {
         throw UnsupportedOperationException("XRAY_MODE=grpc selected, but gRPC client is not wired yet")
     }
+
+    override fun listClients(node: NodeEntity): List<XrayNodeClient> {
+        throw UnsupportedOperationException("XRAY_MODE=grpc selected, but gRPC client is not wired yet")
+    }
+
+    override fun updateClientTrafficLimit(node: NodeEntity, email: String, totalBytes: Long) {
+        throw UnsupportedOperationException("XRAY_MODE=grpc selected, but gRPC client is not wired yet")
+    }
 }

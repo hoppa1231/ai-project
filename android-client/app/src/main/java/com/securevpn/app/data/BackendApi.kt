@@ -30,7 +30,7 @@ class BackendApi(
         val session = ensureSession()
         val body = JSONObject()
             .put("deviceId", session.deviceId)
-            .put("routeMode", "CASCADE")
+            .put("routeMode", "SINGLE")
             .apply {
                 if (!region.isNullOrBlank()) put("region", region)
                 if (!exitNodeId.isNullOrBlank()) put("exitNodeId", exitNodeId)
