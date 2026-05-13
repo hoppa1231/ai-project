@@ -39,14 +39,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.securevpn.app.data.BackendApi
-import com.securevpn.app.data.TelegramAppLoginResult
 import com.securevpn.app.data.TelegramAuthData
 import com.securevpn.app.ui.theme.SecureVpnTheme
 import com.securevpn.app.vpn.SingBoxTunnel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import kotlin.math.abs
@@ -179,46 +177,16 @@ fun SovietVpnApp(
             apiNotice = "Telegram уже привязан"
             return
         }
-        telegramNotice = "готовим вход через Telegram..."
-        scope.launch {
-            runCatching { api.startTelegramAppLogin() }
-                .onSuccess { login ->
-                    telegramNotice = "откройте бота и нажмите Start"
-                    val opened = runCatching {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(login.telegramAppUrl)))
-                        true
-                    }.getOrDefault(false)
-                    if (!opened) {
-                        runCatching {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(login.telegramWebUrl)))
-                        }.onFailure { error ->
-                            telegramNotice = error.message?.take(70) ?: "Не удалось открыть Telegram"
-                            apiNotice = telegramNotice
-                            return@launch
-                        }
-                    }
-
-                    repeat(75) {
-                        delay(2_000)
-                        when (val result = runCatching { api.pollTelegramAppLogin(login.challengeId) }.getOrNull()) {
-                            is TelegramAppLoginResult.Ready -> {
-                                val account = result.account ?: api.telegramAccount()
-                                telegramAccount = account
-                                telegramNotice = "вход выполнен: ${account?.displayName ?: "Telegram"}"
-                                apiNotice = "Telegram-авторизация принята"
-                                refreshBootstrap()
-                                return@launch
-                            }
-                            TelegramAppLoginResult.Pending, null -> Unit
-                        }
-                    }
-                    telegramNotice = "Telegram вход истек"
-                    apiNotice = telegramNotice
-                }
-                .onFailure { error ->
-                    telegramNotice = error.message?.take(70) ?: "Не удалось начать Telegram вход"
-                    apiNotice = telegramNotice
-                }
+        telegramNotice = "открываем Telegram..."
+        val webLoginUrl = Uri.parse("${BuildConfig.API_BASE_URL}/auth/telegram/login")
+            .buildUpon()
+            .appendQueryParameter("return_to", "securevpn://telegram-auth")
+            .build()
+        runCatching {
+            context.startActivity(Intent(Intent.ACTION_VIEW, webLoginUrl))
+        }.onFailure { error ->
+            telegramNotice = error.message?.take(70) ?: "Не удалось открыть Telegram"
+            apiNotice = telegramNotice
         }
     }
 
