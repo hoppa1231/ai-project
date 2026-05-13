@@ -28,6 +28,7 @@ app:
   telegram:
     botToken: ${?TELEGRAM_BOT_TOKEN}
     botUsername: ${?TELEGRAM_BOT_USERNAME}
+    appLoginEnabled: ${?TELEGRAM_APP_LOGIN_ENABLED}
   vpn:
     issueTtlHours: 24
   quota:

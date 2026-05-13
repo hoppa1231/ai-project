@@ -102,7 +102,9 @@ fun Application.module() {
     configureOpenApiRoutes()
 
     startNodeHealthWorker(context)
-    startTelegramAppLoginWorker(context)
+    if (context.config.telegramAppLoginEnabled) {
+        startTelegramAppLoginWorker(context)
+    }
 }
 
 fun Application.appContext(): AppContext = attributes[AppContextKey]

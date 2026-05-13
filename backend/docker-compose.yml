@@ -30,6 +30,7 @@ services:
       XRAY_MODE: stub
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-info_panel_85_bot}
+      TELEGRAM_APP_LOGIN_ENABLED: ${TELEGRAM_APP_LOGIN_ENABLED:-false}
     ports:
       - "8080:8080"
 

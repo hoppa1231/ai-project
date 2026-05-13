@@ -291,6 +291,9 @@ fun Application.configureAuthRoutes(context: AppContext) {
                 if (context.config.telegramBotToken.isBlank()) {
                     throw ApiException(HttpStatusCode.ServiceUnavailable, "TELEGRAM_AUTH_DISABLED", "Telegram auth is not configured")
                 }
+                if (!context.config.telegramAppLoginEnabled) {
+                    throw ApiException(HttpStatusCode.ServiceUnavailable, "TELEGRAM_APP_LOGIN_DISABLED", "Telegram app login is disabled")
+                }
                 val body = call.receive<TelegramAppLoginStartRequest>()
                 if (body.deviceFingerprint.length < 8) {
                     throw ApiException(HttpStatusCode.BadRequest, "INVALID_DEVICE_FINGERPRINT", "Invalid fingerprint")
