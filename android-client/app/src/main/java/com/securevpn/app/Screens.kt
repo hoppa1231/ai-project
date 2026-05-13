@@ -250,11 +250,13 @@ fun SettingsScreen(
     killSwitch: Boolean,
     darkRoom: Boolean,
     notices: Boolean,
+    telegramStatus: String?,
     onDns: () -> Unit,
     onAuto: () -> Unit,
     onKill: () -> Unit,
     onDark: () -> Unit,
-    onNotices: () -> Unit
+    onNotices: () -> Unit,
+    onTelegramLogin: () -> Unit
 ) {
     val primary = if (darkRoom) Gold else Burgundy
     val text = if (darkRoom) BoneLight else Ink
@@ -286,6 +288,9 @@ fun SettingsScreen(
                     .padding(top = 10.dp, bottom = 76.dp)
             ) {
                 UserPermitCard(primary = primary, text = text, border = line, panel = panel)
+                SettingsSection("УЧЕТНАЯ ЗАПИСЬ", primary = primary, border = line, panel = panel) {
+                    SettingsRow("0.1", "Telegram-пропуск", telegramStatus ?: "войти через @${BuildConfig.TELEGRAM_BOT_USERNAME}", onToggle = onTelegramLogin, text = text, soft = soft, night = darkRoom)
+                }
                 SettingsSection("СВЯЗЬ", primary = primary, border = line, panel = panel) {
                     SettingsRow("1.1", "Шифръ канала", "AES-256", text = text, soft = soft)
                     SettingsRow("1.2", "Протоколъ", "VLESS", text = text, soft = soft)

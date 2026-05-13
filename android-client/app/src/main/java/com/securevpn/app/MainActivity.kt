@@ -70,6 +70,8 @@ fun SovietVpnApp() {
     var darkRoom by rememberSaveable { mutableStateOf(true) }
     var notices by rememberSaveable { mutableStateOf(false) }
     var apiNotice by remember { mutableStateOf<String?>(null) }
+    var telegramNotice by remember { mutableStateOf<String?>(null) }
+    var showTelegramLogin by rememberSaveable { mutableStateOf(false) }
     var userTouchedConnection by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val selectedServer = serverNodes.firstOrNull { it.id == selectedServerId } ?: serverNodes.first()
@@ -85,27 +87,33 @@ fun SovietVpnApp() {
         }
     }
 
-    LaunchedEffect(Unit) {
-        runCatching { api.bootstrap() }
-            .onSuccess { bootstrap ->
-                val apiNodes = bootstrap.nodes.mapIndexed { index, node -> node.toServerNode(index) }
-                if (apiNodes.isNotEmpty()) {
-                    serverNodes = apiNodes
-                    if (apiNodes.none { it.id == selectedServerId }) {
-                        selectedServerId = apiNodes.first().id
+    fun refreshBootstrap() {
+        scope.launch {
+            runCatching { api.bootstrap() }
+                .onSuccess { bootstrap ->
+                    val apiNodes = bootstrap.nodes.mapIndexed { index, node -> node.toServerNode(index) }
+                    if (apiNodes.isNotEmpty()) {
+                        serverNodes = apiNodes
+                        if (apiNodes.none { it.id == selectedServerId }) {
+                            selectedServerId = apiNodes.first().id
+                        }
                     }
+                    if (!userTouchedConnection) {
+                        state = LinkState.Off
+                    }
+                    apiNotice = null
                 }
-                if (!userTouchedConnection) {
-                    state = LinkState.Off
+                .onFailure { error ->
+                    if (!userTouchedConnection) {
+                        state = LinkState.Off
+                    }
+                    apiNotice = error.message?.take(90) ?: "API недоступен"
                 }
-                apiNotice = null
-            }
-            .onFailure { error ->
-                if (!userTouchedConnection) {
-                    state = LinkState.Off
-                }
-                apiNotice = error.message?.take(90) ?: "API недоступен"
-            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshBootstrap()
     }
 
     startConnection = {
@@ -221,11 +229,13 @@ fun SovietVpnApp() {
                         killSwitch = killSwitch,
                         darkRoom = darkRoom,
                         notices = notices,
+                        telegramStatus = telegramNotice,
                         onDns = { dnsCheck = !dnsCheck },
                         onAuto = { autoConnect = !autoConnect },
                         onKill = { killSwitch = !killSwitch },
                         onDark = { darkRoom = !darkRoom },
-                        onNotices = { notices = !notices }
+                        onNotices = { notices = !notices },
+                        onTelegramLogin = { showTelegramLogin = true }
                     )
 
                     AppScreen.Speed -> SpeedScreen(nightTheme = darkRoom)
@@ -253,6 +263,29 @@ fun SovietVpnApp() {
                     .align(Alignment.BottomCenter)
                     .padding(horizontal = 18.dp, vertical = 10.dp)
             )
+
+            if (showTelegramLogin) {
+                TelegramLoginScreen(
+                    nightTheme = darkRoom,
+                    onClose = { showTelegramLogin = false },
+                    onAuth = { payload ->
+                        showTelegramLogin = false
+                        telegramNotice = "Telegram проверяется..."
+                        scope.launch {
+                            runCatching { api.loginWithTelegram(payload) }
+                                .onSuccess {
+                                    telegramNotice = "вход выполнен: @${payload.username ?: BuildConfig.TELEGRAM_BOT_USERNAME}"
+                                    apiNotice = "Telegram-авторизация принята"
+                                    refreshBootstrap()
+                                }
+                                .onFailure { error ->
+                                    telegramNotice = error.message?.take(70) ?: "Telegram вход не удался"
+                                    apiNotice = telegramNotice
+                                }
+                        }
+                    }
+                )
+            }
         }
     }
 }

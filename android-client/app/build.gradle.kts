@@ -5,6 +5,8 @@ plugins {
 
 val apiBaseUrl = providers.gradleProperty("SECUREVPN_API_BASE_URL")
     .orElse("https://tech-supp-test.ru")
+val telegramBotUsername = providers.gradleProperty("SECUREVPN_TELEGRAM_BOT_USERNAME")
+    .orElse("info_panel_85_bot")
 
 android {
     namespace = "com.securevpn.app"
@@ -17,6 +19,7 @@ android {
         versionCode = 1
         versionName = "1.0"
         buildConfigField("String", "API_BASE_URL", "\"${apiBaseUrl.get().trimEnd('/')}\"")
+        buildConfigField("String", "TELEGRAM_BOT_USERNAME", "\"${telegramBotUsername.get().removePrefix("@")}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
