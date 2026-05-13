@@ -29,6 +29,7 @@ services:
       HASH_PEPPER: change-this-pepper
       XRAY_MODE: stub
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-info_panel_85_bot}
     ports:
       - "8080:8080"
 

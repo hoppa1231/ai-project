@@ -474,13 +474,21 @@ fun ServerRow(server: ServerNode, selected: Boolean, stamping: Boolean, nightThe
 }
 
 @Composable
-fun UserPermitCard(primary: Color, text: Color, border: Color, panel: Color) {
+fun UserPermitCard(
+    primary: Color,
+    text: Color,
+    border: Color,
+    panel: Color,
+    telegramStatus: String?,
+    onTelegramLogin: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(92.dp)
             .border(2.dp, border)
             .background(panel)
+            .clickable { onTelegramLogin() }
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Canvas(Modifier.matchParentSize()) {
@@ -495,18 +503,20 @@ fun UserPermitCard(primary: Color, text: Color, border: Color, panel: Color) {
             Spacer(Modifier.width(18.dp))
             Column(verticalArrangement = Arrangement.Center) {
                 Text("ПОДПИСЧИКЪ №", color = text.copy(alpha = 0.62f), fontFamily = PtSans, fontSize = 9.sp, lineHeight = 9.sp, letterSpacing = 3.sp)
-                Text("1949-7715", color = primary, fontFamily = Russo, fontSize = 17.sp, lineHeight = 17.sp)
+                Text(if (telegramStatus?.startsWith("вход выполнен") == true) "TELEGRAM" else "НЕ ПРИВЯЗАН", color = primary, fontFamily = Russo, fontSize = 17.sp, lineHeight = 17.sp)
                 Text(
-                    "Иванов И. С., тарифъ «годовой»",
+                    telegramStatus ?: "нажмите для входа через @${BuildConfig.TELEGRAM_BOT_USERNAME}",
                     color = text,
                     fontFamily = Playfair,
                     fontStyle = FontStyle.Italic,
                     fontSize = 11.sp,
-                    lineHeight = 11.sp
+                    lineHeight = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
-        Stamp("ОПЛАЧЕНО", color = primary, stampSize = 9, modifier = Modifier.align(Alignment.TopEnd).zIndex(80f))
+        Stamp(if (telegramStatus?.startsWith("вход выполнен") == true) "ВХОДЪ" else "ВОЙТИ", color = primary, stampSize = 9, modifier = Modifier.align(Alignment.TopEnd).zIndex(80f))
     }
 }
 

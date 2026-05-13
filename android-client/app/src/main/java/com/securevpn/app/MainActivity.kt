@@ -1,7 +1,9 @@
 package com.securevpn.app
 
 import android.app.Activity
+import android.content.Intent
 import android.net.VpnService
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -37,27 +39,64 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.securevpn.app.data.BackendApi
+import com.securevpn.app.data.TelegramAuthData
 import com.securevpn.app.ui.theme.SecureVpnTheme
 import com.securevpn.app.vpn.SingBoxTunnel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import kotlin.math.abs
 import kotlin.math.min
 
 class MainActivity : ComponentActivity() {
+    private val telegramAuthEvents = MutableSharedFlow<TelegramAuthData>(replay = 1)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             SecureVpnTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = BurgundyDark) {
-                    SovietVpnApp()
+                    SovietVpnApp(telegramAuthEvents = telegramAuthEvents)
                 }
             }
         }
+        handleIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        val payload = intent?.data?.takeIf { it.scheme == "securevpn" && it.host == "telegram-auth" }
+            ?.getQueryParameter("payload")
+            ?.let(::parseTelegramAuthPayload)
+            ?: return
+        telegramAuthEvents.tryEmit(payload)
+    }
+
+    private fun parseTelegramAuthPayload(raw: String): TelegramAuthData {
+        val json = JSONObject(raw)
+        return TelegramAuthData(
+            id = json.getLong("id"),
+            authDate = json.getLong("auth_date"),
+            hash = json.getString("hash"),
+            firstName = json.optStringOrNull("first_name"),
+            lastName = json.optStringOrNull("last_name"),
+            username = json.optStringOrNull("username"),
+            photoUrl = json.optStringOrNull("photo_url")
+        )
     }
 }
 
 @Composable
-fun SovietVpnApp() {
+fun SovietVpnApp(
+    telegramAuthEvents: Flow<TelegramAuthData> = emptyFlow()
+) {
     val context = LocalContext.current
     val api = remember(context) { BackendApi(context) }
     var screen by rememberSaveable { mutableStateOf(AppScreen.Home) }
@@ -71,7 +110,6 @@ fun SovietVpnApp() {
     var notices by rememberSaveable { mutableStateOf(false) }
     var apiNotice by remember { mutableStateOf<String?>(null) }
     var telegramNotice by remember { mutableStateOf<String?>(null) }
-    var showTelegramLogin by rememberSaveable { mutableStateOf(false) }
     var userTouchedConnection by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val selectedServer = serverNodes.firstOrNull { it.id == selectedServerId } ?: serverNodes.first()
@@ -114,6 +152,40 @@ fun SovietVpnApp() {
 
     LaunchedEffect(Unit) {
         refreshBootstrap()
+    }
+
+    fun completeTelegramLogin(payload: TelegramAuthData) {
+        telegramNotice = "Telegram проверяется..."
+        scope.launch {
+            runCatching { api.loginWithTelegram(payload) }
+                .onSuccess {
+                    telegramNotice = "вход выполнен: @${payload.username ?: BuildConfig.TELEGRAM_BOT_USERNAME}"
+                    apiNotice = "Telegram-авторизация принята"
+                    refreshBootstrap()
+                }
+                .onFailure { error ->
+                    telegramNotice = error.message?.take(70) ?: "Telegram вход не удался"
+                    apiNotice = telegramNotice
+                }
+        }
+    }
+
+    fun openTelegramLogin() {
+        val url = Uri.parse("${BuildConfig.API_BASE_URL}/auth/telegram/login")
+            .buildUpon()
+            .appendQueryParameter("return_to", "securevpn://telegram-auth")
+            .build()
+        telegramNotice = "открываем Telegram..."
+        runCatching {
+            context.startActivity(Intent(Intent.ACTION_VIEW, url))
+        }.onFailure { error ->
+            telegramNotice = error.message?.take(70) ?: "Не удалось открыть Telegram"
+            apiNotice = telegramNotice
+        }
+    }
+
+    LaunchedEffect(telegramAuthEvents) {
+        telegramAuthEvents.collect(::completeTelegramLogin)
     }
 
     startConnection = {
@@ -235,7 +307,7 @@ fun SovietVpnApp() {
                         onKill = { killSwitch = !killSwitch },
                         onDark = { darkRoom = !darkRoom },
                         onNotices = { notices = !notices },
-                        onTelegramLogin = { showTelegramLogin = true }
+                        onTelegramLogin = ::openTelegramLogin
                     )
 
                     AppScreen.Speed -> SpeedScreen(nightTheme = darkRoom)
@@ -263,31 +335,12 @@ fun SovietVpnApp() {
                     .align(Alignment.BottomCenter)
                     .padding(horizontal = 18.dp, vertical = 10.dp)
             )
-
-            if (showTelegramLogin) {
-                TelegramLoginScreen(
-                    nightTheme = darkRoom,
-                    onClose = { showTelegramLogin = false },
-                    onAuth = { payload ->
-                        showTelegramLogin = false
-                        telegramNotice = "Telegram проверяется..."
-                        scope.launch {
-                            runCatching { api.loginWithTelegram(payload) }
-                                .onSuccess {
-                                    telegramNotice = "вход выполнен: @${payload.username ?: BuildConfig.TELEGRAM_BOT_USERNAME}"
-                                    apiNotice = "Telegram-авторизация принята"
-                                    refreshBootstrap()
-                                }
-                                .onFailure { error ->
-                                    telegramNotice = error.message?.take(70) ?: "Telegram вход не удался"
-                                    apiNotice = telegramNotice
-                                }
-                        }
-                    }
-                )
-            }
         }
     }
+}
+
+private fun JSONObject.optStringOrNull(name: String): String? {
+    return optString(name).takeIf { it.isNotBlank() }
 }
 
 @Preview(showBackground = true, showSystemUi = true)

@@ -8,6 +8,7 @@ import com.example.security.AccessClaims
 import com.example.security.LimitRule
 import com.example.security.deviceIdOrNull
 import com.example.security.requireUserId
+import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
@@ -16,6 +17,7 @@ import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
@@ -96,6 +98,21 @@ data class ProfileResponse(
 fun Application.configureAuthRoutes(context: AppContext) {
     routing {
         route("/auth") {
+            get("/telegram/login") {
+                if (context.config.telegramBotToken.isBlank()) {
+                    throw ApiException(HttpStatusCode.ServiceUnavailable, "TELEGRAM_AUTH_DISABLED", "Telegram auth is not configured")
+                }
+                val returnTo = call.request.queryParameters["return_to"]?.takeIf { it.startsWith("securevpn://") }
+                    ?: "securevpn://telegram-auth"
+                call.respondText(
+                    telegramLoginPage(
+                        botUsername = context.config.telegramBotUsername.removePrefix("@"),
+                        returnTo = returnTo
+                    ),
+                    ContentType.Text.Html
+                )
+            }
+
             post("/register") {
                 context.rateLimit.enforce(
                     key = "register:${call.request.local.remoteHost}",
@@ -531,6 +548,41 @@ fun Application.configureAuthRoutes(context: AppContext) {
             }
         }
     }
+}
+
+private fun telegramLoginPage(botUsername: String, returnTo: String): String {
+    val safeBotUsername = botUsername.replace(Regex("[^A-Za-z0-9_]"), "")
+    val safeReturnTo = returnTo.replace("\\", "\\\\").replace("'", "\\'")
+    return """
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Telegram login</title>
+  <style>
+    html, body { margin: 0; min-height: 100%; background: #f7f2e6; color: #2b2118; font-family: system-ui, sans-serif; }
+    body { display: grid; place-items: center; padding: 24px; box-sizing: border-box; }
+    main { width: min(420px, 100%); text-align: center; }
+    h1 { margin: 0 0 10px; font-size: 22px; }
+    p { margin: 10px 0 22px; color: #675c4f; line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Вход через Telegram</h1>
+    <p>Подтвердите вход, затем мы вернем вас в приложение.</p>
+    <script async src="https://telegram.org/js/telegram-widget.js?22"
+      data-telegram-login="$safeBotUsername"
+      data-size="large"
+      data-radius="6"
+      data-request-access="write"
+      data-onauth="window.location.href='$safeReturnTo?payload=' + encodeURIComponent(JSON.stringify(user));">
+    </script>
+  </main>
+</body>
+</html>
+    """.trimIndent()
 }
 
 private fun validateCreds(email: String, password: String) {
