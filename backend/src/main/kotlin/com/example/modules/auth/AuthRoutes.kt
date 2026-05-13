@@ -28,6 +28,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.jooq.exception.DataAccessException
+import java.net.URLEncoder
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -134,15 +135,18 @@ fun Application.configureAuthRoutes(context: AppContext) {
                 if (context.config.telegramBotToken.isBlank()) {
                     throw ApiException(HttpStatusCode.ServiceUnavailable, "TELEGRAM_AUTH_DISABLED", "Telegram auth is not configured")
                 }
-                val returnTo = call.request.queryParameters["return_to"]?.takeIf { it.startsWith("securevpn://") }
-                    ?: "securevpn://telegram-auth"
                 call.respondText(
                     telegramLoginPage(
-                        botUsername = context.config.telegramBotUsername.removePrefix("@"),
-                        returnTo = returnTo
+                        botUsername = context.config.telegramBotUsername.removePrefix("@")
                     ),
                     ContentType.Text.Html
                 )
+            }
+
+            get("/telegram/complete") {
+                val payload = call.request.queryParameters["payload"]
+                    ?: throw ApiException(HttpStatusCode.BadRequest, "MISSING_TELEGRAM_PAYLOAD", "Missing Telegram payload")
+                call.respondText(telegramCompletePage(payload), ContentType.Text.Html)
             }
 
             post("/telegram/app-login/webhook/{secret}") {
@@ -690,9 +694,8 @@ private fun issueTelegramSession(
     )
 }
 
-private fun telegramLoginPage(botUsername: String, returnTo: String): String {
+private fun telegramLoginPage(botUsername: String): String {
     val safeBotUsername = botUsername.replace(Regex("[^A-Za-z0-9_]"), "")
-    val safeReturnTo = returnTo.replace("\\", "\\\\").replace("'", "\\'")
     return """
 <!doctype html>
 <html lang="ru">
@@ -717,9 +720,45 @@ private fun telegramLoginPage(botUsername: String, returnTo: String): String {
       data-size="large"
       data-radius="6"
       data-request-access="write"
-      data-onauth="window.location.href='$safeReturnTo?payload=' + encodeURIComponent(JSON.stringify(user));">
+      data-onauth="window.location.href='/auth/telegram/complete?payload=' + encodeURIComponent(JSON.stringify(user));">
     </script>
   </main>
+</body>
+</html>
+    """.trimIndent()
+}
+
+private fun telegramCompletePage(payload: String): String {
+    val encodedPayload = URLEncoder.encode(payload, Charsets.UTF_8.name()).replace("+", "%20")
+    val appUri = "securevpn://telegram-auth?payload=$encodedPayload"
+    val intentUri = "intent://telegram-auth?payload=$encodedPayload#Intent;scheme=securevpn;package=com.securevpn.app;end"
+    return """
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Telegram login complete</title>
+  <style>
+    html, body { margin: 0; min-height: 100%; background: #f7f2e6; color: #2b2118; font-family: system-ui, sans-serif; }
+    body { display: grid; place-items: center; padding: 24px; box-sizing: border-box; }
+    main { width: min(420px, 100%); text-align: center; }
+    h1 { margin: 0 0 10px; font-size: 22px; }
+    p { margin: 10px 0 22px; color: #675c4f; line-height: 1.4; }
+    a { display: inline-block; padding: 13px 18px; border-radius: 6px; background: #7b1d1d; color: #fff; text-decoration: none; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Telegram подтвержден</h1>
+    <p>Возвращаем вас в приложение.</p>
+    <a href="$intentUri">Открыть приложение</a>
+    <p><a href="$appUri">Открыть напрямую</a></p>
+  </main>
+  <script>
+    window.location.href = "$intentUri";
+    setTimeout(function () { window.location.href = "$appUri"; }, 900);
+  </script>
 </body>
 </html>
     """.trimIndent()
