@@ -20,6 +20,7 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -39,6 +40,27 @@ data class GuestAuthRequest(
     val deviceFingerprint: String,
     val deviceName: String,
     val platform: String,
+    val appVersion: String? = null,
+    val publicKey: String? = null
+)
+
+@Serializable
+data class TelegramAuthPayload(
+    val id: Long,
+    @SerialName("first_name") val firstName: String? = null,
+    @SerialName("last_name") val lastName: String? = null,
+    val username: String? = null,
+    @SerialName("photo_url") val photoUrl: String? = null,
+    @SerialName("auth_date") val authDate: Long,
+    val hash: String
+)
+
+@Serializable
+data class TelegramAuthRequest(
+    val telegram: TelegramAuthPayload,
+    val deviceFingerprint: String? = null,
+    val deviceName: String? = null,
+    val platform: String? = null,
     val appVersion: String? = null,
     val publicKey: String? = null
 )
@@ -187,6 +209,88 @@ fun Application.configureAuthRoutes(context: AppContext) {
                         deviceBound = true,
                         accountType = user.accountType,
                         deviceId = device.id.toString()
+                    )
+                )
+            }
+
+            post("/telegram") {
+                context.rateLimit.enforce(
+                    key = "telegram:${call.request.local.remoteHost}",
+                    rule = LimitRule(30, Duration.ofMinutes(1))
+                )
+
+                val body = call.receive<TelegramAuthRequest>()
+                val tg = TelegramAuthVerifier.verify(context.config.telegramBotToken, body.telegram)
+                val user = context.users.createTelegram(
+                    telegramId = tg.id,
+                    username = tg.username,
+                    firstName = tg.firstName,
+                    lastName = tg.lastName,
+                    photoUrl = tg.photoUrl,
+                    passwordHash = context.passwordHasher.hash(UUID.randomUUID().toString())
+                )
+
+                if (user.status != "ACTIVE") {
+                    throw ApiException(HttpStatusCode.Forbidden, "USER_DISABLED", "User is disabled")
+                }
+
+                val policyHash = PolicyHashing.hash("VPN", emptyList(), emptyList(), emptyList(), emptyList())
+                context.policies.createDefault(user.id, policyHash)
+                context.users.touchLastLogin(user.id)
+
+                val device = body.deviceFingerprint?.takeIf { it.isNotBlank() }?.let { fingerprint ->
+                    if (fingerprint.length < 8) {
+                        throw ApiException(HttpStatusCode.BadRequest, "INVALID_DEVICE_FINGERPRINT", "Invalid fingerprint")
+                    }
+                    context.devices.bindDevice(
+                        userId = user.id,
+                        fingerprintHash = Hashing.sha256Hex("${context.config.hashPepper}:$fingerprint"),
+                        deviceName = body.deviceName?.takeIf { it.isNotBlank() } ?: "Telegram device",
+                        platform = body.platform?.takeIf { it.isNotBlank() } ?: "unknown",
+                        appVersion = body.appVersion,
+                        publicKey = body.publicKey
+                    )
+                }
+
+                val accessClaims = AccessClaims(userId = user.id, role = user.role, deviceId = device?.id)
+                val access = context.jwt.issueAccess(accessClaims)
+                val refresh: String? = device?.let {
+                    val (token, jti) = context.jwt.issueRefresh(accessClaims)
+                    context.refreshTokens.create(
+                        userId = user.id,
+                        deviceId = it.id,
+                        jti = jti,
+                        tokenHash = Hashing.sha256Hex("${context.config.hashPepper}:$token"),
+                        expiresAt = Instant.now().plus(context.config.jwt.refreshTtl),
+                        ip = call.request.local.remoteHost,
+                        userAgent = call.request.headers["User-Agent"]
+                    )
+                    token
+                }
+
+                context.audit.log(
+                    action = "auth.telegram",
+                    success = true,
+                    actorUserId = user.id,
+                    actorDeviceId = device?.id,
+                    targetType = "user",
+                    targetId = user.id,
+                    detailsJson = buildJsonObject {
+                        put("telegramId", tg.id)
+                        put("username", tg.username)
+                        put("deviceBound", device != null)
+                    }.toString(),
+                    call = call
+                )
+
+                call.respond(
+                    AuthResponse(
+                        accessToken = access,
+                        refreshToken = refresh,
+                        expiresIn = context.config.jwt.accessTtl.seconds,
+                        deviceBound = device != null,
+                        accountType = user.accountType,
+                        deviceId = device?.id?.toString()
                     )
                 )
             }

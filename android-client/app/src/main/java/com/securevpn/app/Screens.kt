@@ -432,7 +432,7 @@ fun SpeedScreen(nightTheme: Boolean) {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    if (testState.running) "∙∙∙ ИДЁТЪ ИЗМѢРЕНИЕ ∙∙∙" else "▶ НАЧАТЬ ЗАМѢРЪ",
+                    if (testState.running) "∙∙∙ ИДЁТЪ ИЗМЕРЕНИЕ ∙∙∙" else "▶ НАЧАТЬ ЗАМЕРЪ",
                     color = primary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Black,

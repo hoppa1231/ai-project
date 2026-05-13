@@ -2,6 +2,7 @@ package com.example.db.repo
 
 import io.ktor.server.application.ApplicationCall
 import org.jooq.DSLContext
+import java.net.InetAddress
 import java.util.UUID
 
 class AuditRepository(private val dsl: DSLContext) {
@@ -16,7 +17,7 @@ class AuditRepository(private val dsl: DSLContext) {
         call: ApplicationCall?
     ) {
         val requestId = call?.request?.headers?.get("X-Request-Id")?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-        val ip = call?.request?.local?.remoteHost
+        val ip = call?.request?.local?.remoteHost?.let(::normalizeIp)
         val ua = call?.request?.headers?.get("User-Agent")
 
         dsl.execute(
@@ -39,5 +40,9 @@ class AuditRepository(private val dsl: DSLContext) {
             success,
             detailsJson
         )
+    }
+
+    private fun normalizeIp(raw: String): String? {
+        return runCatching { InetAddress.getByName(raw).hostAddress }.getOrNull()
     }
 }

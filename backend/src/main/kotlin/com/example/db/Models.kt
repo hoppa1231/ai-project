@@ -135,6 +135,7 @@ data class NodeClientInventoryEntity(
     val expiryTime: Long,
     val limitIp: Int,
     val subId: String?,
+    val telegramId: Long?,
     val lastSyncedAt: Instant
 )
 

@@ -81,7 +81,8 @@ class ThreeXuiClient(
                     downBytes = stat?.get("down")?.jsonPrimitive?.longOrNull ?: 0L,
                     expiryTime = client["expiryTime"]?.jsonPrimitive?.longOrNull ?: stat?.get("expiryTime")?.jsonPrimitive?.longOrNull ?: 0L,
                     limitIp = client["limitIp"]?.jsonPrimitive?.intOrNull ?: 0,
-                    subId = client["subId"]?.jsonPrimitive?.contentOrNull
+                    subId = client["subId"]?.jsonPrimitive?.contentOrNull,
+                    tgId = client["tgId"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
                 )
             }
         }
@@ -243,7 +244,8 @@ data class XuiClientSnapshot(
     val downBytes: Long,
     val expiryTime: Long,
     val limitIp: Int,
-    val subId: String?
+    val subId: String?,
+    val tgId: String? = null
 )
 
 @Serializable

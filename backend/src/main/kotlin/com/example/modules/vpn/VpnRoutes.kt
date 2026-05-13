@@ -5,6 +5,7 @@ import com.example.config.AppContext
 import com.example.db.ClientEntity
 import com.example.db.IssuedConfigEntity
 import com.example.db.IssuedConfigHopEntity
+import com.example.db.NodeClientInventoryEntity
 import com.example.db.NodeEntity
 import com.example.security.LimitRule
 import com.example.security.deviceIdOrNull
@@ -94,6 +95,33 @@ data class VpnConfigsResponse(
     val configs: List<IssueConfigResponse>
 )
 
+@Serializable
+data class TelegramVpnConfigResponse(
+    val nodeId: String,
+    val nodeName: String,
+    val region: String,
+    val inboundId: Int,
+    val inboundRemark: String,
+    val inboundTag: String,
+    val email: String,
+    val uuid: String?,
+    val flow: String?,
+    val enabled: Boolean,
+    val totalBytes: Long,
+    val upBytes: Long,
+    val downBytes: Long,
+    val expiryTime: Long,
+    val subId: String?,
+    val vlessUri: String?,
+    val lastSyncedAt: String
+)
+
+@Serializable
+data class TelegramVpnConfigsResponse(
+    val telegramId: Long,
+    val configs: List<TelegramVpnConfigResponse>
+)
+
 fun Application.configureVpnRoutes(context: AppContext) {
     routing {
         authenticate("auth-jwt") {
@@ -117,6 +145,29 @@ fun Application.configureVpnRoutes(context: AppContext) {
                     call.respond(
                         VpnConfigsResponse(
                             configs = configs.map { config -> buildIssueResponse(context, config) }
+                        )
+                    )
+                }
+
+                get("/telegram-configs") {
+                    val principal = call.principal<JWTPrincipal>()
+                        ?: throw ApiException(HttpStatusCode.Unauthorized, "UNAUTHORIZED", "Missing principal")
+                    val userId = principal.requireUserId()
+                    val telegramId = context.users.getTelegramId(userId)
+                        ?: throw ApiException(HttpStatusCode.Forbidden, "TELEGRAM_NOT_LINKED", "Telegram account is not linked")
+
+                    val clients = context.nodeClients.listByTelegramId(telegramId)
+                    val nodes = clients.map { it.nodeId }.distinct().associateWith { nodeId ->
+                        context.nodes.findById(nodeId)
+                    }
+
+                    call.respond(
+                        TelegramVpnConfigsResponse(
+                            telegramId = telegramId,
+                            configs = clients.mapNotNull { client ->
+                                val node = nodes[client.nodeId] ?: return@mapNotNull null
+                                toTelegramConfigResponse(client, node)
+                            }
                         )
                     )
                 }
@@ -213,6 +264,7 @@ fun Application.configureVpnRoutes(context: AppContext) {
 
                     val ttl = body.ttlHours?.let { Duration.ofHours(it) } ?: context.config.issueConfigTtl
                     val expiresAt = Instant.now().plus(ttl)
+                    val telegramId = context.users.getTelegramId(userId)
 
                     val configId = try {
                         context.vpn.insertProvisioning(
@@ -241,7 +293,8 @@ fun Application.configureVpnRoutes(context: AppContext) {
                                     email = email,
                                     uuid = vlessUuid,
                                     flow = flow,
-                                    expiresAt = expiresAt
+                                    expiresAt = expiresAt,
+                                    telegramId = telegramId
                                 )
                             )
                             addedUsers += spec.node to email
@@ -510,6 +563,37 @@ private fun toIssueResponse(
         hops = hopResponses,
         vlessUri = config.vlessUri,
         clientConfig = cfg
+    )
+}
+
+private fun toTelegramConfigResponse(
+    client: NodeClientInventoryEntity,
+    node: NodeEntity
+): TelegramVpnConfigResponse {
+    val vlessUri = client.uuid?.let { rawUuid ->
+        runCatching {
+            VpnConfigRenderer.vlessUri(node, UUID.fromString(rawUuid), client.flow)
+        }.getOrNull()
+    }
+
+    return TelegramVpnConfigResponse(
+        nodeId = node.id.toString(),
+        nodeName = node.name,
+        region = node.region,
+        inboundId = client.inboundId,
+        inboundRemark = client.inboundRemark,
+        inboundTag = client.inboundTag,
+        email = client.email,
+        uuid = client.uuid,
+        flow = client.flow,
+        enabled = client.enabled,
+        totalBytes = client.totalBytes,
+        upBytes = client.upBytes,
+        downBytes = client.downBytes,
+        expiryTime = client.expiryTime,
+        subId = client.subId,
+        vlessUri = vlessUri,
+        lastSyncedAt = client.lastSyncedAt.toString()
     )
 }
 

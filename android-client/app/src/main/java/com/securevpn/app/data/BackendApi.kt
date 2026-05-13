@@ -52,6 +52,54 @@ class BackendApi(
         return issued
     }
 
+    suspend fun loginWithTelegram(auth: TelegramAuthData) {
+        val fingerprint = getOrCreateDeviceFingerprint()
+        val telegram = JSONObject()
+            .put("id", auth.id)
+            .put("auth_date", auth.authDate)
+            .put("hash", auth.hash)
+            .apply {
+                auth.firstName?.let { put("first_name", it) }
+                auth.lastName?.let { put("last_name", it) }
+                auth.username?.let { put("username", it) }
+                auth.photoUrl?.let { put("photo_url", it) }
+            }
+        val body = JSONObject()
+            .put("telegram", telegram)
+            .put("deviceFingerprint", fingerprint)
+            .put("deviceName", android.os.Build.MODEL ?: "Android")
+            .put("platform", "android")
+            .put("appVersion", BuildConfig.VERSION_NAME)
+            .toString()
+
+        val response = requestText(path = "/auth/telegram", method = "POST", body = body)
+        storeSession(JSONObject(response))
+    }
+
+    suspend fun loadTelegramConfigs(): List<TelegramLinkedConfig> {
+        val response = authorizedRequest(path = "/vpn/telegram-configs")
+        val configs = JSONObject(response).optJSONArray("configs") ?: JSONArray()
+        return buildList {
+            for (index in 0 until configs.length()) {
+                val item = configs.getJSONObject(index)
+                add(
+                    TelegramLinkedConfig(
+                        nodeId = item.getString("nodeId"),
+                        nodeName = item.optString("nodeName", "VPN node"),
+                        region = item.optString("region", ""),
+                        email = item.getString("email"),
+                        enabled = item.optBoolean("enabled", true),
+                        upBytes = item.optLong("upBytes", 0L),
+                        downBytes = item.optLong("downBytes", 0L),
+                        totalBytes = item.optLong("totalBytes", 0L),
+                        expiryTime = item.optLong("expiryTime", 0L),
+                        vlessUri = item.optStringOrNull("vlessUri")
+                    )
+                )
+            }
+        }
+    }
+
     suspend fun revokeActiveConfig(): RevokeResult {
         val configId = activeConfigId ?: return RevokeResult(configId = "", status = "NO_ACTIVE_CONFIG")
         val body = JSONObject()
@@ -316,6 +364,29 @@ data class RevokeResult(
     val configId: String,
     val status: String,
     val revokedAt: String? = null
+)
+
+data class TelegramAuthData(
+    val id: Long,
+    val authDate: Long,
+    val hash: String,
+    val firstName: String? = null,
+    val lastName: String? = null,
+    val username: String? = null,
+    val photoUrl: String? = null
+)
+
+data class TelegramLinkedConfig(
+    val nodeId: String,
+    val nodeName: String,
+    val region: String,
+    val email: String,
+    val enabled: Boolean,
+    val upBytes: Long,
+    val downBytes: Long,
+    val totalBytes: Long,
+    val expiryTime: Long,
+    val vlessUri: String?
 )
 
 private data class AuthSession(

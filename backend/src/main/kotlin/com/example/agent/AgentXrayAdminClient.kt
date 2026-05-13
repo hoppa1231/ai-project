@@ -33,7 +33,8 @@ class AgentXrayAdminClient(
                     email = user.email,
                     uuid = user.uuid.toString(),
                     flow = user.flow,
-                    expiresAt = user.expiresAt.toString()
+                    expiresAt = user.expiresAt.toString(),
+                    tgId = user.telegramId?.toString()
                 )
             )
         )
@@ -77,7 +78,8 @@ class AgentXrayAdminClient(
                 downBytes = it.downBytes,
                 expiryTime = it.expiryTime,
                 limitIp = it.limitIp,
-                subId = it.subId
+                subId = it.subId,
+                telegramId = it.tgId?.toLongOrNull()
             )
         }
     }
@@ -134,7 +136,8 @@ private data class AgentAddUserRequest(
     val email: String,
     val uuid: String,
     val flow: String?,
-    val expiresAt: String
+    val expiresAt: String,
+    val tgId: String? = null
 )
 
 @Serializable
@@ -169,5 +172,6 @@ private data class AgentClientSnapshot(
     val downBytes: Long,
     val expiryTime: Long,
     val limitIp: Int,
-    val subId: String?
+    val subId: String?,
+    val tgId: String? = null
 )

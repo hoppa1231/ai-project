@@ -64,7 +64,8 @@ fun Application.module() {
                     id = body.uuid,
                     email = body.email,
                     flow = body.flow.orEmpty(),
-                    expiryTime = body.expiresAt?.let { Instant.parse(it).toEpochMilli() } ?: 0L
+                    expiryTime = body.expiresAt?.let { Instant.parse(it).toEpochMilli() } ?: 0L,
+                    tgId = body.tgId.orEmpty()
                 )
             )
             call.respond(ProvisionResponse(status = "ACTIVE", inboundId = inboundId, email = body.email))
@@ -105,7 +106,8 @@ data class AddUserRequest(
     val email: String,
     val uuid: String,
     val flow: String? = null,
-    val expiresAt: String? = null
+    val expiresAt: String? = null,
+    val tgId: String? = null
 )
 
 @Serializable

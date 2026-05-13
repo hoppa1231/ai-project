@@ -6,6 +6,7 @@ import com.example.db.repo.CreateNodeParams
 import com.example.db.repo.UpdateNodeParams
 import com.example.security.requireRole
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.ContentType
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
 import io.ktor.server.auth.authenticate
@@ -13,6 +14,7 @@ import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
@@ -100,6 +102,7 @@ data class NodeClientInventoryResponse(
     val expiryTime: Long,
     val limitIp: Int,
     val subId: String?,
+    val telegramId: Long?,
     val lastSyncedAt: String
 )
 
@@ -131,9 +134,34 @@ data class PatchNodeClientResponse(
 
 fun Application.configureAdminRoutes(context: AppContext) {
     routing {
+        get("/admin") {
+            call.respondText(adminPanelHtml, ContentType.Text.Html)
+        }
+
         authenticate("auth-jwt") {
             route("/admin") {
                 route("/nodes") {
+                    get {
+                        val principal = call.principal<JWTPrincipal>()
+                            ?: throw ApiException(HttpStatusCode.Unauthorized, "UNAUTHORIZED", "Missing principal")
+                        ensureAdmin(principal)
+
+                        call.respond(
+                            context.nodes.listAll().map {
+                                AdminNodeResponse(
+                                    id = it.id.toString(),
+                                    name = it.name,
+                                    region = it.region,
+                                    status = it.status,
+                                    health = it.health,
+                                    weight = it.weight,
+                                    load = it.load,
+                                    maxClients = it.maxClients
+                                )
+                            }
+                        )
+                    }
+
                     post {
                         val principal = call.principal<JWTPrincipal>()
                             ?: throw ApiException(HttpStatusCode.Unauthorized, "UNAUTHORIZED", "Missing principal")
@@ -404,6 +432,7 @@ private fun toNodeClientResponse(client: com.example.db.NodeClientInventoryEntit
         expiryTime = client.expiryTime,
         limitIp = client.limitIp,
         subId = client.subId,
+        telegramId = client.telegramId,
         lastSyncedAt = client.lastSyncedAt.toString()
     )
 }
@@ -417,3 +446,351 @@ private fun ensureAdmin(principal: JWTPrincipal) {
 private fun bytesToGb(bytes: Long): Double = bytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
 
 private fun gbToBytes(gb: Long): Long = gb * 1024L * 1024L * 1024L
+
+private val adminPanelHtml = """
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SecureVPN Admin</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --panel: #ffffff;
+      --text: #1c2430;
+      --muted: #687487;
+      --line: #dbe0e8;
+      --accent: #1463ff;
+      --ok: #0a7a43;
+      --bad: #b42318;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 24px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+    h1, h2 { margin: 0; letter-spacing: 0; }
+    h1 { font-size: 20px; }
+    h2 { font-size: 16px; }
+    main { width: min(1180px, 100%); margin: 0 auto; padding: 24px; }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      margin-bottom: 18px;
+    }
+    .toolbar, .grid, .row {
+      display: grid;
+      gap: 12px;
+    }
+    .toolbar {
+      grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto auto;
+      align-items: end;
+    }
+    .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 14px; }
+    .row { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 14px; }
+    label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
+    input, select, button {
+      height: 38px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      font: inherit;
+    }
+    input, select { width: 100%; padding: 0 10px; background: #fff; color: var(--text); }
+    button {
+      padding: 0 14px;
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    button.secondary { background: #fff; color: var(--text); border-color: var(--line); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { padding: 10px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    th { color: var(--muted); font-size: 12px; text-transform: uppercase; }
+    td.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .status { font-weight: 700; }
+    .ok { color: var(--ok); }
+    .bad { color: var(--bad); }
+    .muted { color: var(--muted); }
+    .message { min-height: 20px; margin-top: 10px; color: var(--muted); }
+    .hidden { display: none; }
+    @media (max-width: 820px) {
+      header { align-items: flex-start; flex-direction: column; }
+      main { padding: 14px; }
+      .toolbar, .grid, .row { grid-template-columns: 1fr; }
+      table, thead, tbody, tr, th, td { display: block; }
+      thead { display: none; }
+      tr { border-bottom: 1px solid var(--line); padding: 8px 0; }
+      td { border-bottom: 0; padding: 6px 0; }
+      td::before { content: attr(data-label); display: block; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>SecureVPN Admin</h1>
+      <div class="muted" id="sessionState">Not signed in</div>
+    </div>
+    <button class="secondary" id="logoutBtn">Log out</button>
+  </header>
+  <main>
+    <section id="loginSection">
+      <h2>Admin login</h2>
+      <div class="toolbar">
+        <label>Email<input id="email" type="email" autocomplete="username" value="admin@securevpn.local"></label>
+        <label>Password<input id="password" type="password" autocomplete="current-password"></label>
+        <button id="loginBtn">Log in</button>
+        <button class="secondary" id="loadBtn">Refresh</button>
+      </div>
+      <div class="message" id="loginMessage"></div>
+    </section>
+
+    <section>
+      <h2>Nodes</h2>
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Region</th><th>Status</th><th>Health</th><th>Load</th><th>Weight</th><th>Max clients</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="nodesBody"></tbody>
+      </table>
+      <div class="message" id="nodesMessage"></div>
+    </section>
+
+    <section>
+      <h2>Create node</h2>
+      <div class="grid">
+        <label>Name<input id="nodeName"></label>
+        <label>Region<input id="nodeRegion" placeholder="ru"></label>
+        <label>Country code<input id="nodeCountry" placeholder="RU" maxlength="2"></label>
+        <label>Hostname<input id="nodeHostname"></label>
+        <label>Public address<input id="nodePublicAddress"></label>
+        <label>Public port<input id="nodePublicPort" type="number" value="443"></label>
+        <label>API host<input id="nodeApiHost"></label>
+        <label>API port<input id="nodeApiPort" type="number" value="10085"></label>
+        <label>Inbound tag<input id="nodeInboundTag"></label>
+        <label>Reality SNI<input id="nodeRealityServerName" value="www.microsoft.com"></label>
+        <label>Reality public key<input id="nodeRealityPublicKey"></label>
+        <label>Reality short id<input id="nodeRealityShortId"></label>
+        <label>Fingerprint<input id="nodeRealityFingerprint" value="chrome"></label>
+        <label>ALPN<input id="nodeRealityAlpn" value="h2,http/1.1"></label>
+        <label>Weight<input id="nodeWeight" type="number" value="100"></label>
+        <label>Max clients<input id="nodeMaxClients" type="number" value="10000"></label>
+      </div>
+      <div class="row">
+        <button id="createNodeBtn">Create node</button>
+      </div>
+      <div class="message" id="createMessage"></div>
+    </section>
+
+    <section>
+      <h2>Grant quota</h2>
+      <div class="row">
+        <label>User email<input id="quotaEmail" type="email"></label>
+        <label>GB<input id="quotaGb" type="number" min="1" value="10"></label>
+        <label>External ref<input id="quotaRef"></label>
+      </div>
+      <div class="row">
+        <button id="grantQuotaBtn">Grant quota</button>
+      </div>
+      <div class="message" id="quotaMessage"></div>
+    </section>
+
+    <section id="clientsSection" class="hidden">
+      <h2 id="clientsTitle">Node clients</h2>
+      <table>
+        <thead>
+          <tr><th>Email</th><th>Enabled</th><th>Total GB</th><th>Used GB</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="clientsBody"></tbody>
+      </table>
+      <div class="message" id="clientsMessage"></div>
+    </section>
+  </main>
+  <script>
+    const state = { token: localStorage.getItem("adminToken") || "", nodes: [], selectedNode: null };
+    const el = (id) => document.getElementById(id);
+    const gb = (bytes) => (Number(bytes || 0) / 1073741824).toFixed(2);
+    const setMessage = (id, text, ok) => {
+      const node = el(id);
+      node.textContent = text || "";
+      node.className = "message " + (ok === true ? "ok" : ok === false ? "bad" : "");
+    };
+    const headers = () => ({ "Content-Type": "application/json", "Authorization": "Bearer " + state.token });
+    async function request(path, options) {
+      const response = await fetch(path, options || {});
+      const text = await response.text();
+      let data = null;
+      if (text) {
+        try { data = JSON.parse(text); } catch (_) { data = text; }
+      }
+      if (!response.ok) {
+        const message = data && data.message ? data.message : response.status + " " + response.statusText;
+        throw new Error(message);
+      }
+      return data;
+    }
+    function updateSession() {
+      el("sessionState").textContent = state.token ? "Signed in" : "Not signed in";
+      el("logoutBtn").disabled = !state.token;
+    }
+    async function login() {
+      setMessage("loginMessage", "Signing in...");
+      const data = await request("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: el("email").value, password: el("password").value })
+      });
+      state.token = data.accessToken;
+      localStorage.setItem("adminToken", state.token);
+      updateSession();
+      setMessage("loginMessage", "Signed in", true);
+      await loadNodes();
+    }
+    async function loadNodes() {
+      if (!state.token) {
+        setMessage("nodesMessage", "Log in first", false);
+        return;
+      }
+      setMessage("nodesMessage", "Loading...");
+      state.nodes = await request("/admin/nodes", { headers: headers() });
+      renderNodes();
+      setMessage("nodesMessage", state.nodes.length ? "" : "No nodes yet", true);
+    }
+    function renderNodes() {
+      el("nodesBody").innerHTML = "";
+      state.nodes.forEach((node) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML =
+          "<td data-label='Name'>" + node.name + "</td>" +
+          "<td data-label='Region'>" + node.region + "</td>" +
+          "<td data-label='Status'><select data-field='status'><option>ACTIVE</option><option>DRAINING</option><option>DISABLED</option></select></td>" +
+          "<td data-label='Health'><span class='status " + (node.health === "HEALTHY" ? "ok" : "bad") + "'>" + node.health + "</span></td>" +
+          "<td data-label='Load'>" + node.load + "</td>" +
+          "<td data-label='Weight'><input data-field='weight' type='number' value='" + node.weight + "'></td>" +
+          "<td data-label='Max clients'><input data-field='maxClients' type='number' value='" + node.maxClients + "'></td>" +
+          "<td data-label='Actions' class='actions'></td>";
+        tr.querySelector("[data-field=status]").value = node.status;
+        const actions = tr.querySelector(".actions");
+        const save = document.createElement("button");
+        save.textContent = "Save";
+        save.onclick = () => updateNode(node.id, tr);
+        const clients = document.createElement("button");
+        clients.textContent = "Clients";
+        clients.className = "secondary";
+        clients.onclick = () => syncClients(node.id, node.name);
+        actions.append(save, clients);
+        el("nodesBody").appendChild(tr);
+      });
+    }
+    async function updateNode(id, row) {
+      await request("/admin/nodes/" + id, {
+        method: "PATCH",
+        headers: headers(),
+        body: JSON.stringify({
+          status: row.querySelector("[data-field=status]").value,
+          weight: Number(row.querySelector("[data-field=weight]").value),
+          maxClients: Number(row.querySelector("[data-field=maxClients]").value)
+        })
+      });
+      setMessage("nodesMessage", "Node updated", true);
+      await loadNodes();
+    }
+    async function createNode() {
+      const payload = {
+        name: el("nodeName").value,
+        region: el("nodeRegion").value,
+        countryCode: el("nodeCountry").value,
+        hostname: el("nodeHostname").value,
+        publicAddress: el("nodePublicAddress").value,
+        publicPort: Number(el("nodePublicPort").value),
+        apiHost: el("nodeApiHost").value,
+        apiPort: Number(el("nodeApiPort").value),
+        inboundTag: el("nodeInboundTag").value,
+        realityServerName: el("nodeRealityServerName").value,
+        realityPublicKey: el("nodeRealityPublicKey").value,
+        realityShortId: el("nodeRealityShortId").value,
+        realityFingerprint: el("nodeRealityFingerprint").value,
+        realityAlpn: el("nodeRealityAlpn").value.split(",").map((item) => item.trim()).filter(Boolean),
+        weight: Number(el("nodeWeight").value),
+        maxClients: Number(el("nodeMaxClients").value)
+      };
+      await request("/admin/nodes", { method: "POST", headers: headers(), body: JSON.stringify(payload) });
+      setMessage("createMessage", "Node created", true);
+      await loadNodes();
+    }
+    async function grantQuota() {
+      const payload = { email: el("quotaEmail").value, gb: Number(el("quotaGb").value), source: "admin_panel" };
+      if (el("quotaRef").value) payload.externalRef = el("quotaRef").value;
+      const data = await request("/admin/quota/grant", { method: "POST", headers: headers(), body: JSON.stringify(payload) });
+      setMessage("quotaMessage", "Granted. Remaining: " + data.remainingGb.toFixed(2) + " GB", true);
+    }
+    async function syncClients(nodeId, nodeName) {
+      state.selectedNode = nodeId;
+      el("clientsSection").classList.remove("hidden");
+      el("clientsTitle").textContent = "Node clients: " + nodeName;
+      setMessage("clientsMessage", "Syncing...");
+      const data = await request("/admin/nodes/" + nodeId + "/clients/sync", { method: "POST", headers: headers() });
+      renderClients(data.clients || []);
+      setMessage("clientsMessage", "Synced " + data.synced + " clients", true);
+    }
+    function renderClients(clients) {
+      el("clientsBody").innerHTML = "";
+      clients.forEach((client) => {
+        const tr = document.createElement("tr");
+        const used = Number(client.upBytes || 0) + Number(client.downBytes || 0);
+        tr.innerHTML =
+          "<td data-label='Email'>" + client.email + "</td>" +
+          "<td data-label='Enabled'>" + client.enabled + "</td>" +
+          "<td data-label='Total GB'><input data-field='totalGb' type='number' min='0' value='" + gb(client.totalBytes) + "'></td>" +
+          "<td data-label='Used GB'>" + gb(used) + "</td>" +
+          "<td data-label='Actions' class='actions'></td>";
+        const save = document.createElement("button");
+        save.textContent = "Set limit";
+        save.onclick = () => updateClientLimit(client.email, tr);
+        tr.querySelector(".actions").appendChild(save);
+        el("clientsBody").appendChild(tr);
+      });
+    }
+    async function updateClientLimit(email, row) {
+      await request("/admin/nodes/" + state.selectedNode + "/clients/" + encodeURIComponent(email), {
+        method: "PATCH",
+        headers: headers(),
+        body: JSON.stringify({ totalGb: Number(row.querySelector("[data-field=totalGb]").value) })
+      });
+      setMessage("clientsMessage", "Client limit updated", true);
+    }
+    el("loginBtn").onclick = () => login().catch((error) => setMessage("loginMessage", error.message, false));
+    el("loadBtn").onclick = () => loadNodes().catch((error) => setMessage("nodesMessage", error.message, false));
+    el("logoutBtn").onclick = () => {
+      state.token = "";
+      localStorage.removeItem("adminToken");
+      updateSession();
+    };
+    el("createNodeBtn").onclick = () => createNode().catch((error) => setMessage("createMessage", error.message, false));
+    el("grantQuotaBtn").onclick = () => grantQuota().catch((error) => setMessage("quotaMessage", error.message, false));
+    updateSession();
+    if (state.token) loadNodes().catch((error) => setMessage("nodesMessage", error.message, false));
+  </script>
+</body>
+</html>
+""".trimIndent()

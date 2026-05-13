@@ -28,6 +28,7 @@ services:
       JWT_SECRET: change-this-secret
       HASH_PEPPER: change-this-pepper
       XRAY_MODE: stub
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
     ports:
       - "8080:8080"
 

@@ -38,8 +38,10 @@ Then run backend locally:
 - `PUT /policy/current`
 - `GET /quota/current`
 - `POST /admin/nodes`
+- `GET /admin/nodes`
 - `PATCH /admin/nodes/{id}`
 - `POST /admin/quota/grant`
+- `GET /admin` minimal browser admin panel
 - `GET /health`
 - `GET /openapi.json`
 - `GET /swagger`
@@ -50,4 +52,4 @@ Then run backend locally:
 - Additional purchased quota can be granted only to `REGISTERED` users.
 - Current Xray integration mode is `stub`; `grpc` mode is scaffolded.
 - On startup the backend creates an admin user. Use `ADMIN_EMAIL` and `ADMIN_PASSWORD` to override defaults.
-- Synthetic seed data is enabled by default. Set `SEED_SYNTHETIC=false` to disable it.
+- Synthetic seed data is disabled by default. Set `SEED_SYNTHETIC=true` only for local/demo data.

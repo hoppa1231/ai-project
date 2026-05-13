@@ -25,6 +25,8 @@ app:
     scheme: ${?AGENT_SCHEME}
     basePath: ${?AGENT_BASE_PATH}
     token: ${?AGENT_TOKEN}
+  telegram:
+    botToken: ${?TELEGRAM_BOT_TOKEN}
   vpn:
     issueTtlHours: 24
   quota:

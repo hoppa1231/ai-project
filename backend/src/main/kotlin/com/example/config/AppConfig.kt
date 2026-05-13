@@ -21,6 +21,7 @@ data class AppConfig(
     val agentScheme: String,
     val agentBasePath: String,
     val agentToken: String,
+    val telegramBotToken: String,
     val issueConfigTtl: Duration,
     val freeGbPerMonth: Long
 )
@@ -43,6 +44,7 @@ fun Application.loadAppConfig(): AppConfig {
         agentScheme = cfg.propertyOrNull("app.agent.scheme")?.getString() ?: "http",
         agentBasePath = cfg.propertyOrNull("app.agent.basePath")?.getString() ?: "",
         agentToken = cfg.propertyOrNull("app.agent.token")?.getString() ?: "change-agent-token",
+        telegramBotToken = cfg.propertyOrNull("app.telegram.botToken")?.getString() ?: "",
         issueConfigTtl = Duration.ofHours(cfg.propertyOrNull("app.vpn.issueTtlHours")?.getString()?.toLong() ?: 24),
         freeGbPerMonth = cfg.propertyOrNull("app.quota.freeGbPerMonth")?.getString()?.toLong() ?: 10
     )

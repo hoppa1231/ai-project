@@ -22,7 +22,7 @@ object BootstrapSeeder {
 
         ensureAdmin(context, adminEmail, adminPassword)
 
-        val seedEnabled = System.getenv("SEED_SYNTHETIC")?.lowercase() != "false"
+        val seedEnabled = System.getenv("SEED_SYNTHETIC")?.lowercase() == "true"
         if (seedEnabled) {
             seedSynthetic(context)
         }

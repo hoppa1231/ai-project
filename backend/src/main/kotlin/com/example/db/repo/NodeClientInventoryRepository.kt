@@ -19,9 +19,9 @@ class NodeClientInventoryRepository(private val dsl: DSLContext) {
                 INSERT INTO node_client_inventory (
                     node_id, inbound_id, inbound_remark, inbound_tag, xray_email,
                     vless_uuid, flow, enabled, total_bytes, up_bytes, down_bytes,
-                    expiry_time, limit_ip, sub_id, last_synced_at
+                    expiry_time, limit_ip, sub_id, telegram_id, last_synced_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now())
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now())
                 ON CONFLICT (node_id, xray_email) DO UPDATE SET
                     inbound_id = EXCLUDED.inbound_id,
                     inbound_remark = EXCLUDED.inbound_remark,
@@ -35,6 +35,7 @@ class NodeClientInventoryRepository(private val dsl: DSLContext) {
                     expiry_time = EXCLUDED.expiry_time,
                     limit_ip = EXCLUDED.limit_ip,
                     sub_id = EXCLUDED.sub_id,
+                    telegram_id = EXCLUDED.telegram_id,
                     last_synced_at = now()
                 """.trimIndent(),
                 nodeId,
@@ -50,7 +51,8 @@ class NodeClientInventoryRepository(private val dsl: DSLContext) {
                 client.downBytes,
                 client.expiryTime,
                 client.limitIp,
-                client.subId
+                client.subId,
+                client.telegramId
             )
         }
         dsl.execute(
@@ -66,7 +68,7 @@ class NodeClientInventoryRepository(private val dsl: DSLContext) {
             """
             SELECT id, node_id, inbound_id, inbound_remark, inbound_tag, xray_email,
                    vless_uuid, flow, enabled, total_bytes, up_bytes, down_bytes,
-                   expiry_time, limit_ip, sub_id, last_synced_at
+                   expiry_time, limit_ip, sub_id, telegram_id, last_synced_at
             FROM node_client_inventory
             WHERE node_id = ?
             ORDER BY inbound_id ASC, xray_email ASC
@@ -80,13 +82,27 @@ class NodeClientInventoryRepository(private val dsl: DSLContext) {
             """
             SELECT id, node_id, inbound_id, inbound_remark, inbound_tag, xray_email,
                    vless_uuid, flow, enabled, total_bytes, up_bytes, down_bytes,
-                   expiry_time, limit_ip, sub_id, last_synced_at
+                   expiry_time, limit_ip, sub_id, telegram_id, last_synced_at
             FROM node_client_inventory
             WHERE node_id = ? AND xray_email = ?
             """.trimIndent(),
             nodeId,
             email
         )?.let(::map)
+    }
+
+    fun listByTelegramId(telegramId: Long): List<NodeClientInventoryEntity> {
+        return dsl.fetch(
+            """
+            SELECT id, node_id, inbound_id, inbound_remark, inbound_tag, xray_email,
+                   vless_uuid, flow, enabled, total_bytes, up_bytes, down_bytes,
+                   expiry_time, limit_ip, sub_id, telegram_id, last_synced_at
+            FROM node_client_inventory
+            WHERE telegram_id = ?
+            ORDER BY last_synced_at DESC, xray_email ASC
+            """.trimIndent(),
+            telegramId
+        ).map(::map)
     }
 
     private fun map(rec: org.jooq.Record): NodeClientInventoryEntity {
@@ -106,6 +122,7 @@ class NodeClientInventoryRepository(private val dsl: DSLContext) {
             expiryTime = rec.get("expiry_time", Long::class.java)!!,
             limitIp = rec.get("limit_ip", Int::class.java)!!,
             subId = rec.get("sub_id", String::class.java),
+            telegramId = rec.get("telegram_id", Long::class.java),
             lastSyncedAt = rec.get("last_synced_at", OffsetDateTime::class.java)!!.toInstant()
         )
     }

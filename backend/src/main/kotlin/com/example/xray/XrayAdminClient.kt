@@ -8,7 +8,8 @@ data class XrayUser(
     val email: String,
     val uuid: UUID,
     val flow: String?,
-    val expiresAt: Instant
+    val expiresAt: Instant,
+    val telegramId: Long? = null
 )
 
 data class XrayNodeClient(
@@ -24,7 +25,8 @@ data class XrayNodeClient(
     val downBytes: Long,
     val expiryTime: Long,
     val limitIp: Int,
-    val subId: String?
+    val subId: String?,
+    val telegramId: Long?
 )
 
 interface XrayAdminClient {
