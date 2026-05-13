@@ -24,6 +24,7 @@ data class AppConfig(
     val telegramBotToken: String,
     val telegramBotUsername: String,
     val telegramAppLoginEnabled: Boolean,
+    val telegramWebhookSecret: String,
     val issueConfigTtl: Duration,
     val freeGbPerMonth: Long
 )
@@ -49,6 +50,7 @@ fun Application.loadAppConfig(): AppConfig {
         telegramBotToken = cfg.propertyOrNull("app.telegram.botToken")?.getString() ?: "",
         telegramBotUsername = cfg.propertyOrNull("app.telegram.botUsername")?.getString() ?: "info_panel_85_bot",
         telegramAppLoginEnabled = cfg.propertyOrNull("app.telegram.appLoginEnabled")?.getString()?.toBooleanStrictOrNull() ?: false,
+        telegramWebhookSecret = cfg.propertyOrNull("app.telegram.webhookSecret")?.getString() ?: "",
         issueConfigTtl = Duration.ofHours(cfg.propertyOrNull("app.vpn.issueTtlHours")?.getString()?.toLong() ?: 24),
         freeGbPerMonth = cfg.propertyOrNull("app.quota.freeGbPerMonth")?.getString()?.toLong() ?: 10
     )

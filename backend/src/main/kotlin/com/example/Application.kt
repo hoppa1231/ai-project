@@ -102,7 +102,7 @@ fun Application.module() {
     configureOpenApiRoutes()
 
     startNodeHealthWorker(context)
-    if (context.config.telegramAppLoginEnabled) {
+    if (context.config.telegramAppLoginEnabled && context.config.telegramWebhookSecret.isBlank()) {
         startTelegramAppLoginWorker(context)
     }
 }

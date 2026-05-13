@@ -16,6 +16,7 @@ import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
 import io.ktor.server.request.receive
+import io.ktor.server.request.receiveText
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
@@ -142,6 +143,20 @@ fun Application.configureAuthRoutes(context: AppContext) {
                     ),
                     ContentType.Text.Html
                 )
+            }
+
+            post("/telegram/app-login/webhook/{secret}") {
+                if (!context.config.telegramAppLoginEnabled || context.config.telegramWebhookSecret.isBlank()) {
+                    call.respond(HttpStatusCode.NotFound)
+                    return@post
+                }
+                val secret = call.parameters["secret"]
+                if (secret != context.config.telegramWebhookSecret) {
+                    call.respond(HttpStatusCode.NotFound)
+                    return@post
+                }
+                context.telegramAppLogins.handleUpdateJson(call.receiveText())
+                call.respond(HttpStatusCode.OK)
             }
 
             post("/register") {

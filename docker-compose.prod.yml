@@ -24,6 +24,8 @@ services:
       postgres:
         condition: service_healthy
     env_file: .env
+    extra_hosts:
+      - "api.telegram.org:149.154.166.110"
     ports:
       - "127.0.0.1:8080:8080"
 

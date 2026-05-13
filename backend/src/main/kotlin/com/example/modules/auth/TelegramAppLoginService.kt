@@ -75,6 +75,11 @@ class TelegramAppLoginService(
         pending.remove(id)
     }
 
+    fun handleUpdateJson(rawJson: String) {
+        val update = json.decodeFromString<TelegramUpdate>(rawJson)
+        handleUpdate(update)
+    }
+
     suspend fun pollOnce() {
         if (botToken.isBlank()) return
         cleanupExpired()
@@ -117,11 +122,6 @@ class TelegramAppLoginService(
             photoUrl = null,
             authDate = Instant.now()
         )
-        message.chat?.id?.let {
-            runCatching {
-                requestTelegram("sendMessage?chat_id=$it&text=${encode("Вход подтвержден. Вернитесь в приложение.")}")
-            }
-        }
     }
 
     private fun extractChallengeId(text: String): String? {

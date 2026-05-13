@@ -6,7 +6,7 @@ plugins {
 val apiBaseUrl = providers.gradleProperty("SECUREVPN_API_BASE_URL")
     .orElse("https://tech-supp-test.ru")
 val telegramBotUsername = providers.gradleProperty("SECUREVPN_TELEGRAM_BOT_USERNAME")
-    .orElse("info_panel_85_bot")
+    .orElse("auth_panel_85_bot")
 
 android {
     namespace = "com.securevpn.app"
