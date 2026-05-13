@@ -3,9 +3,12 @@ package com.securevpn.app
 import android.annotation.SuppressLint
 import android.os.Handler
 import android.os.Looper
+import android.os.Message
+import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebView
+import android.webkit.WebView.WebViewTransport
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -74,9 +77,13 @@ fun TelegramLoginScreen(
                     factory = { context ->
                         WebView(context).apply {
                             settings.javaScriptEnabled = true
+                            settings.javaScriptCanOpenWindowsAutomatically = true
                             settings.domStorageEnabled = true
+                            settings.setSupportMultipleWindows(true)
+                            CookieManager.getInstance().setAcceptCookie(true)
+                            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                             webViewClient = WebViewClient()
-                            webChromeClient = WebChromeClient()
+                            webChromeClient = TelegramWebChromeClient(this)
                             setBackgroundColor(android.graphics.Color.TRANSPARENT)
                             addJavascriptInterface(
                                 TelegramAuthBridge { payload -> onAuth(payload) },
@@ -125,6 +132,22 @@ fun TelegramLoginScreen(
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
+    }
+}
+
+private class TelegramWebChromeClient(
+    private val webView: WebView
+) : WebChromeClient() {
+    override fun onCreateWindow(
+        view: WebView,
+        isDialog: Boolean,
+        isUserGesture: Boolean,
+        resultMsg: Message
+    ): Boolean {
+        val transport = resultMsg.obj as WebViewTransport
+        transport.webView = webView
+        resultMsg.sendToTarget()
+        return true
     }
 }
 
