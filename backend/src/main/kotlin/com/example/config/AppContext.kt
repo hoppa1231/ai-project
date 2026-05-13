@@ -15,6 +15,7 @@ import com.example.db.repo.VpnRepository
 import com.example.security.JwtService
 import com.example.security.PasswordHasher
 import com.example.security.RateLimitService
+import com.example.modules.auth.TelegramAppLoginService
 import com.example.xray.GrpcXrayAdminClient
 import com.example.xray.StubXrayAdminClient
 import com.example.xray.XrayAdminClient
@@ -34,6 +35,7 @@ class AppContext(
     val jwt: JwtService,
     val passwordHasher: PasswordHasher,
     val rateLimit: RateLimitService,
+    val telegramAppLogins: TelegramAppLoginService,
     val xray: XrayAdminClient
 )
 
@@ -64,6 +66,10 @@ fun buildContext(config: AppConfig): AppContext {
         jwt = JwtService(config.jwt),
         passwordHasher = PasswordHasher(),
         rateLimit = RateLimitService(),
+        telegramAppLogins = TelegramAppLoginService(
+            botToken = config.telegramBotToken,
+            botUsername = config.telegramBotUsername
+        ),
         xray = xrayClient
     )
 }

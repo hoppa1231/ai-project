@@ -250,6 +250,7 @@ fun SettingsScreen(
     killSwitch: Boolean,
     darkRoom: Boolean,
     notices: Boolean,
+    telegramAccount: com.securevpn.app.data.TelegramAccount?,
     telegramStatus: String?,
     onDns: () -> Unit,
     onAuto: () -> Unit,
@@ -292,6 +293,7 @@ fun SettingsScreen(
                     text = text,
                     border = line,
                     panel = panel,
+                    telegramAccount = telegramAccount,
                     telegramStatus = telegramStatus,
                     onTelegramLogin = onTelegramLogin
                 )

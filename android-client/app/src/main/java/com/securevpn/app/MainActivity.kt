@@ -39,12 +39,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.securevpn.app.data.BackendApi
+import com.securevpn.app.data.TelegramAppLoginResult
 import com.securevpn.app.data.TelegramAuthData
 import com.securevpn.app.ui.theme.SecureVpnTheme
 import com.securevpn.app.vpn.SingBoxTunnel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import kotlin.math.abs
@@ -109,7 +111,8 @@ fun SovietVpnApp(
     var darkRoom by rememberSaveable { mutableStateOf(true) }
     var notices by rememberSaveable { mutableStateOf(false) }
     var apiNotice by remember { mutableStateOf<String?>(null) }
-    var telegramNotice by remember { mutableStateOf<String?>(null) }
+    var telegramAccount by remember { mutableStateOf(api.telegramAccount()) }
+    var telegramNotice by remember { mutableStateOf<String?>(telegramAccount?.let { "вход выполнен: ${it.displayName}" }) }
     var userTouchedConnection by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val selectedServer = serverNodes.firstOrNull { it.id == selectedServerId } ?: serverNodes.first()
@@ -158,8 +161,9 @@ fun SovietVpnApp(
         telegramNotice = "Telegram проверяется..."
         scope.launch {
             runCatching { api.loginWithTelegram(payload) }
-                .onSuccess {
-                    telegramNotice = "вход выполнен: @${payload.username ?: BuildConfig.TELEGRAM_BOT_USERNAME}"
+                .onSuccess { account ->
+                    telegramAccount = account
+                    telegramNotice = "вход выполнен: ${account.displayName}"
                     apiNotice = "Telegram-авторизация принята"
                     refreshBootstrap()
                 }
@@ -171,16 +175,50 @@ fun SovietVpnApp(
     }
 
     fun openTelegramLogin() {
-        val url = Uri.parse("${BuildConfig.API_BASE_URL}/auth/telegram/login")
-            .buildUpon()
-            .appendQueryParameter("return_to", "securevpn://telegram-auth")
-            .build()
-        telegramNotice = "открываем Telegram..."
-        runCatching {
-            context.startActivity(Intent(Intent.ACTION_VIEW, url))
-        }.onFailure { error ->
-            telegramNotice = error.message?.take(70) ?: "Не удалось открыть Telegram"
-            apiNotice = telegramNotice
+        if (telegramAccount != null) {
+            apiNotice = "Telegram уже привязан"
+            return
+        }
+        telegramNotice = "готовим вход через Telegram..."
+        scope.launch {
+            runCatching { api.startTelegramAppLogin() }
+                .onSuccess { login ->
+                    telegramNotice = "откройте бота и нажмите Start"
+                    val opened = runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(login.telegramAppUrl)))
+                        true
+                    }.getOrDefault(false)
+                    if (!opened) {
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(login.telegramWebUrl)))
+                        }.onFailure { error ->
+                            telegramNotice = error.message?.take(70) ?: "Не удалось открыть Telegram"
+                            apiNotice = telegramNotice
+                            return@launch
+                        }
+                    }
+
+                    repeat(75) {
+                        delay(2_000)
+                        when (val result = runCatching { api.pollTelegramAppLogin(login.challengeId) }.getOrNull()) {
+                            is TelegramAppLoginResult.Ready -> {
+                                val account = result.account ?: api.telegramAccount()
+                                telegramAccount = account
+                                telegramNotice = "вход выполнен: ${account?.displayName ?: "Telegram"}"
+                                apiNotice = "Telegram-авторизация принята"
+                                refreshBootstrap()
+                                return@launch
+                            }
+                            TelegramAppLoginResult.Pending, null -> Unit
+                        }
+                    }
+                    telegramNotice = "Telegram вход истек"
+                    apiNotice = telegramNotice
+                }
+                .onFailure { error ->
+                    telegramNotice = error.message?.take(70) ?: "Не удалось начать Telegram вход"
+                    apiNotice = telegramNotice
+                }
         }
     }
 
@@ -301,6 +339,7 @@ fun SovietVpnApp(
                         killSwitch = killSwitch,
                         darkRoom = darkRoom,
                         notices = notices,
+                        telegramAccount = telegramAccount,
                         telegramStatus = telegramNotice,
                         onDns = { dnsCheck = !dnsCheck },
                         onAuto = { autoConnect = !autoConnect },

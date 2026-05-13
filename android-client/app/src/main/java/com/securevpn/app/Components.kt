@@ -479,9 +479,11 @@ fun UserPermitCard(
     text: Color,
     border: Color,
     panel: Color,
+    telegramAccount: com.securevpn.app.data.TelegramAccount?,
     telegramStatus: String?,
     onTelegramLogin: () -> Unit
 ) {
+    val linked = telegramAccount != null
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -503,7 +505,7 @@ fun UserPermitCard(
             Spacer(Modifier.width(18.dp))
             Column(verticalArrangement = Arrangement.Center) {
                 Text("ПОДПИСЧИКЪ №", color = text.copy(alpha = 0.62f), fontFamily = PtSans, fontSize = 9.sp, lineHeight = 9.sp, letterSpacing = 3.sp)
-                Text(if (telegramStatus?.startsWith("вход выполнен") == true) "TELEGRAM" else "НЕ ПРИВЯЗАН", color = primary, fontFamily = Russo, fontSize = 17.sp, lineHeight = 17.sp)
+                Text(if (linked) "TELEGRAM" else "НЕ ПРИВЯЗАН", color = primary, fontFamily = Russo, fontSize = 17.sp, lineHeight = 17.sp)
                 Text(
                     telegramStatus ?: "нажмите для входа через @${BuildConfig.TELEGRAM_BOT_USERNAME}",
                     color = text,
@@ -516,7 +518,7 @@ fun UserPermitCard(
                 )
             }
         }
-        Stamp(if (telegramStatus?.startsWith("вход выполнен") == true) "ВХОДЪ" else "ВОЙТИ", color = primary, stampSize = 9, modifier = Modifier.align(Alignment.TopEnd).zIndex(80f))
+        Stamp(if (linked) "ВХОДЪ" else "ВОЙТИ", color = primary, stampSize = 9, modifier = Modifier.align(Alignment.TopEnd).zIndex(80f))
     }
 }
 

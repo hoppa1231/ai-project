@@ -8,6 +8,7 @@ import com.example.config.buildContext
 import com.example.config.loadAppConfig
 import com.example.modules.admin.configureAdminRoutes
 import com.example.modules.auth.configureAuthRoutes
+import com.example.modules.auth.startTelegramAppLoginWorker
 import com.example.modules.devices.configureDeviceRoutes
 import com.example.modules.health.configureHealthRoutes
 import com.example.modules.health.startNodeHealthWorker
@@ -101,6 +102,7 @@ fun Application.module() {
     configureOpenApiRoutes()
 
     startNodeHealthWorker(context)
+    startTelegramAppLoginWorker(context)
 }
 
 fun Application.appContext(): AppContext = attributes[AppContextKey]

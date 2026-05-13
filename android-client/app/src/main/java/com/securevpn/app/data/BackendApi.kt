@@ -52,7 +52,16 @@ class BackendApi(
         return issued
     }
 
-    suspend fun loginWithTelegram(auth: TelegramAuthData) {
+    fun telegramAccount(): TelegramAccount? {
+        val id = prefs.getLong(KEY_TELEGRAM_ID, 0L).takeIf { it > 0L } ?: return null
+        return TelegramAccount(
+            id = id,
+            username = prefs.getString(KEY_TELEGRAM_USERNAME, null),
+            firstName = prefs.getString(KEY_TELEGRAM_FIRST_NAME, null)
+        )
+    }
+
+    suspend fun loginWithTelegram(auth: TelegramAuthData): TelegramAccount {
         val fingerprint = getOrCreateDeviceFingerprint()
         val telegram = JSONObject()
             .put("id", auth.id)
@@ -74,6 +83,50 @@ class BackendApi(
 
         val response = requestText(path = "/auth/telegram", method = "POST", body = body)
         storeSession(JSONObject(response))
+        return storeTelegramAccount(auth)
+    }
+
+    suspend fun startTelegramAppLogin(): TelegramAppLoginStart {
+        val fingerprint = getOrCreateDeviceFingerprint()
+        val body = JSONObject()
+            .put("deviceFingerprint", fingerprint)
+            .put("deviceName", android.os.Build.MODEL ?: "Android")
+            .put("platform", "android")
+            .put("appVersion", BuildConfig.VERSION_NAME)
+            .toString()
+        val response = requestText(path = "/auth/telegram/app-login/start", method = "POST", body = body)
+        val json = JSONObject(response)
+        return TelegramAppLoginStart(
+            challengeId = json.getString("challengeId"),
+            telegramAppUrl = json.getString("telegramAppUrl"),
+            telegramWebUrl = json.getString("telegramWebUrl"),
+            expiresIn = json.optLong("expiresIn", 300L)
+        )
+    }
+
+    suspend fun pollTelegramAppLogin(challengeId: String): TelegramAppLoginResult {
+        val response = requestText(path = "/auth/telegram/app-login/$challengeId")
+        val json = JSONObject(response)
+        val auth = json.optJSONObject("auth")
+        if (json.optString("status") != "READY" || auth == null) {
+            return TelegramAppLoginResult.Pending
+        }
+        storeSession(auth)
+        val telegram = json.optJSONObject("telegram")
+        val account = if (telegram != null) {
+            storeTelegramAccount(
+                TelegramAuthData(
+                    id = telegram.getLong("id"),
+                    authDate = 0L,
+                    hash = "",
+                    firstName = telegram.optStringOrNull("firstName"),
+                    username = telegram.optStringOrNull("username")
+                )
+            )
+        } else {
+            telegramAccount()
+        }
+        return TelegramAppLoginResult.Ready(account)
     }
 
     suspend fun loadTelegramConfigs(): List<TelegramLinkedConfig> {
@@ -235,6 +288,16 @@ class BackendApi(
         return AuthSession(accessToken = accessToken, refreshToken = refreshToken, deviceId = deviceId)
     }
 
+    private fun storeTelegramAccount(auth: TelegramAuthData): TelegramAccount {
+        val account = TelegramAccount(id = auth.id, username = auth.username, firstName = auth.firstName)
+        prefs.edit()
+            .putLong(KEY_TELEGRAM_ID, auth.id)
+            .putString(KEY_TELEGRAM_USERNAME, auth.username)
+            .putString(KEY_TELEGRAM_FIRST_NAME, auth.firstName)
+            .apply()
+        return account
+    }
+
     private suspend fun requestText(
         path: String,
         method: String = "GET",
@@ -307,6 +370,9 @@ class BackendApi(
             .remove(KEY_DEVICE_ID)
             .remove(KEY_ACTIVE_CONFIG_ID)
             .remove(KEY_ACTIVE_VLESS_URI)
+            .remove(KEY_TELEGRAM_ID)
+            .remove(KEY_TELEGRAM_USERNAME)
+            .remove(KEY_TELEGRAM_FIRST_NAME)
             .apply()
     }
 
@@ -322,6 +388,9 @@ class BackendApi(
         private const val KEY_DEVICE_FINGERPRINT = "device_fingerprint"
         private const val KEY_ACTIVE_CONFIG_ID = "active_config_id"
         private const val KEY_ACTIVE_VLESS_URI = "active_vless_uri"
+        private const val KEY_TELEGRAM_ID = "telegram_id"
+        private const val KEY_TELEGRAM_USERNAME = "telegram_username"
+        private const val KEY_TELEGRAM_FIRST_NAME = "telegram_first_name"
     }
 }
 
@@ -375,6 +444,27 @@ data class TelegramAuthData(
     val username: String? = null,
     val photoUrl: String? = null
 )
+
+data class TelegramAccount(
+    val id: Long,
+    val username: String?,
+    val firstName: String?
+) {
+    val displayName: String
+        get() = username?.let { "@$it" } ?: firstName ?: "id $id"
+}
+
+data class TelegramAppLoginStart(
+    val challengeId: String,
+    val telegramAppUrl: String,
+    val telegramWebUrl: String,
+    val expiresIn: Long
+)
+
+sealed interface TelegramAppLoginResult {
+    data object Pending : TelegramAppLoginResult
+    data class Ready(val account: TelegramAccount?) : TelegramAppLoginResult
+}
 
 data class TelegramLinkedConfig(
     val nodeId: String,
