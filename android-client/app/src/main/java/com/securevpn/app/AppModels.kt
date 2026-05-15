@@ -1,12 +1,14 @@
 package com.securevpn.app
 
 import com.securevpn.app.data.VpnNode
+import com.securevpn.app.data.TelegramLinkedConfig
 import java.util.UUID
 
 enum class AppScreen {
     Home,
     Servers,
     Settings,
+    Routing,
     Speed
 }
 
@@ -23,7 +25,9 @@ data class ServerNode(
     val region: String,
     val ping: Int,
     val load: Int,
-    val recommended: Boolean = false
+    val recommended: Boolean = false,
+    val vlessUri: String? = null,
+    val available: Boolean = true
 )
 
 val ServerNodes = listOf(
@@ -58,6 +62,30 @@ fun VpnNode.toServerNode(index: Int): ServerNode {
         ping = ping,
         load = load.coerceIn(0, 100),
         recommended = index == 0
+    )
+}
+
+fun TelegramLinkedConfig.toServerNode(index: Int): ServerNode {
+    val title = email
+    val location = listOf(nodeName, region.uppercase(), if (enabled) "" else "ОТКЛЮЧЕН")
+        .filter { it.isNotBlank() }
+        .joinToString(" · ")
+        .ifBlank { nodeId.take(8) }
+    val usagePercent = if (totalBytes <= 0L) {
+        0
+    } else {
+        (((upBytes + downBytes).toDouble() / totalBytes.toDouble()) * 100.0).toInt()
+    }
+    return ServerNode(
+        id = "$nodeId:$email",
+        city = title.uppercase(),
+        node = location.uppercase(),
+        region = region,
+        ping = if (enabled) 18 + (index * 9) % 46 else 140,
+        load = usagePercent.coerceIn(0, 100),
+        recommended = index == 0,
+        vlessUri = vlessUri,
+        available = enabled
     )
 }
 

@@ -70,6 +70,22 @@ data class PolicyEntity(
     val updatedAt: Instant
 )
 
+data class RoutingRuleEntity(
+    val id: UUID,
+    val source: String,
+    val userId: UUID?,
+    val defaultRuleKey: String?,
+    val name: String,
+    val description: String,
+    val priority: Int,
+    val enabled: Boolean,
+    val matchType: String,
+    val values: List<String>,
+    val action: String,
+    val editable: Boolean,
+    val revision: Int
+)
+
 data class RefreshTokenEntity(
     val jti: UUID,
     val userId: UUID,

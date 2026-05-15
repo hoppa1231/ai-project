@@ -39,6 +39,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.securevpn.app.data.BackendApi
+import com.securevpn.app.data.RouteRule
+import com.securevpn.app.data.RoutingPolicy
 import com.securevpn.app.data.TelegramAuthData
 import com.securevpn.app.ui.theme.SecureVpnTheme
 import com.securevpn.app.vpn.SingBoxTunnel
@@ -111,9 +113,24 @@ fun SovietVpnApp(
     var apiNotice by remember { mutableStateOf<String?>(null) }
     var telegramAccount by remember { mutableStateOf(api.telegramAccount()) }
     var telegramNotice by remember { mutableStateOf<String?>(telegramAccount?.let { "вход выполнен: ${it.displayName}" }) }
+    var routingPolicy by remember { mutableStateOf(api.cachedRoutingPolicy()) }
+    var routingNotice by remember { mutableStateOf<String?>(null) }
+    var showingTelegramConfigs by remember { mutableStateOf(telegramAccount != null) }
     var userTouchedConnection by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val selectedServer = serverNodes.firstOrNull { it.id == selectedServerId } ?: serverNodes.first()
+    val emptyTelegramServer = remember {
+        ServerNode(
+            id = "telegram-empty",
+            city = "НЕТ КОНФИГОВ",
+            node = "TELEGRAM НЕ НАШЕЛ ПРИВЯЗАННЫХ ЗАПИСЕЙ",
+            region = "",
+            ping = 0,
+            load = 0
+        )
+    }
+    val selectedServer = serverNodes.firstOrNull { it.id == selectedServerId }
+        ?: serverNodes.firstOrNull()
+        ?: if (showingTelegramConfigs) emptyTelegramServer else ServerNodes.first()
     lateinit var startConnection: () -> Unit
     val vpnPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -128,31 +145,71 @@ fun SovietVpnApp(
 
     fun refreshBootstrap() {
         scope.launch {
+            val linkedAccount = telegramAccount
+            if (linkedAccount != null) {
+                runCatching { api.loadTelegramConfigs() }
+                    .onSuccess { telegramConfigs ->
+                        showingTelegramConfigs = true
+                        val nextServers = telegramConfigs.mapIndexed { index, config -> config.toServerNode(index) }
+                        serverNodes = nextServers
+                        if (nextServers.none { it.id == selectedServerId }) {
+                            selectedServerId = nextServers.firstOrNull()?.id ?: selectedServerId
+                        }
+                        if (!userTouchedConnection) {
+                            state = LinkState.Off
+                        }
+                        apiNotice = if (nextServers.isEmpty()) {
+                            "Для Telegram ${linkedAccount.displayName} конфиги пока не найдены"
+                        } else {
+                            null
+                        }
+                    }
+                    .onFailure { error ->
+                        showingTelegramConfigs = true
+                        serverNodes = emptyList()
+                        if (!userTouchedConnection) {
+                            state = LinkState.Off
+                        }
+                        apiNotice = error.message?.take(90) ?: "Не удалось загрузить Telegram-конфиги"
+                    }
+                return@launch
+            }
+
             runCatching { api.bootstrap() }
                 .onSuccess { bootstrap ->
                     val apiNodes = bootstrap.nodes.mapIndexed { index, node -> node.toServerNode(index) }
-                    if (apiNodes.isNotEmpty()) {
-                        serverNodes = apiNodes
-                        if (apiNodes.none { it.id == selectedServerId }) {
-                            selectedServerId = apiNodes.first().id
-                        }
+                    showingTelegramConfigs = false
+                    serverNodes = apiNodes
+                    if (apiNodes.none { it.id == selectedServerId }) {
+                        selectedServerId = apiNodes.firstOrNull()?.id ?: selectedServerId
                     }
-                    if (!userTouchedConnection) {
-                        state = LinkState.Off
-                    }
+                    if (!userTouchedConnection) state = LinkState.Off
                     apiNotice = null
                 }
                 .onFailure { error ->
-                    if (!userTouchedConnection) {
-                        state = LinkState.Off
-                    }
+                    if (!userTouchedConnection) state = LinkState.Off
                     apiNotice = error.message?.take(90) ?: "API недоступен"
+                }
+        }
+    }
+
+    fun refreshRoutingPolicy() {
+        scope.launch {
+            runCatching { api.loadRoutingPolicy() }
+                .onSuccess {
+                    routingPolicy = it
+                    routingNotice = "маршруты синхронизированы"
+                }
+                .onFailure { error ->
+                    routingPolicy = api.cachedRoutingPolicy()
+                    routingNotice = error.message?.take(80) ?: "используется локальная копия"
                 }
         }
     }
 
     LaunchedEffect(Unit) {
         refreshBootstrap()
+        refreshRoutingPolicy()
     }
 
     fun completeTelegramLogin(payload: TelegramAuthData) {
@@ -174,7 +231,8 @@ fun SovietVpnApp(
 
     fun openTelegramLogin() {
         if (telegramAccount != null) {
-            apiNotice = "Telegram уже привязан"
+            apiNotice = "Обновляем Telegram-конфиги..."
+            refreshBootstrap()
             return
         }
         telegramNotice = "открываем Telegram..."
@@ -195,27 +253,131 @@ fun SovietVpnApp(
     }
 
     startConnection = {
-        state = LinkState.Connecting
-        scope.launch {
-            runCatching {
-                SingBoxTunnel(context).start(WorkingVlessUri)
+        val vlessUri = selectedServer.vlessUri
+        if (showingTelegramConfigs && vlessUri.isNullOrBlank()) {
+            state = LinkState.Off
+            apiNotice = "У выбранного Telegram-конфига нет VLESS-ссылки"
+        } else if (showingTelegramConfigs && !selectedServer.available) {
+            state = LinkState.Off
+            apiNotice = "Выбранный Telegram-конфиг отключен на ноде"
+        } else {
+            state = LinkState.Connecting
+            scope.launch {
+                runCatching {
+                    val policy = runCatching { api.loadRoutingPolicy() }
+                        .onSuccess { routingPolicy = it }
+                        .getOrElse { api.cachedRoutingPolicy() }
+                    SingBoxTunnel(context).start(vlessUri ?: WorkingVlessUri, policy)
+                }
+                    .onSuccess {
+                        state = LinkState.On
+                        apiNotice = "VPN запущен: ${selectedServer.city}"
+                    }
+                    .onFailure { error ->
+                        runCatching { SingBoxTunnel(context).stop() }
+                        state = LinkState.Off
+                        apiNotice = error.message?.take(90) ?: "Не удалось запустить VPN"
+                    }
             }
-                .onSuccess {
-                    state = LinkState.On
-                    apiNotice = "VPN запущен через рабочую VLESS-ссылку"
+        }
+    }
+
+    fun saveRoutingPolicy(nextPolicy: RoutingPolicy) {
+        routingNotice = "сохраняем маршруты..."
+        scope.launch {
+            runCatching { api.updateRoutingPolicy(nextPolicy) }
+                .onSuccess { saved ->
+                    routingPolicy = saved
+                    routingNotice = "маршруты утверждены"
+                    if (state == LinkState.On) {
+                        runCatching {
+                            SingBoxTunnel(context).start(selectedServer.vlessUri ?: WorkingVlessUri, saved)
+                        }.onFailure { error ->
+                            apiNotice = error.message?.take(90) ?: "VPN требует перезапуска"
+                        }
+                    }
                 }
                 .onFailure { error ->
-                    runCatching { SingBoxTunnel(context).stop() }
-                    state = LinkState.Off
-                    apiNotice = error.message?.take(90) ?: "Не удалось запустить VPN"
+                    routingNotice = error.message?.take(90) ?: "не удалось сохранить маршруты"
                 }
         }
+    }
+
+    fun toggleDefaultRoute() {
+        saveRoutingPolicy(
+            routingPolicy.copy(
+                defaultRoute = if (routingPolicy.defaultRoute == "VPN") "DIRECT" else "VPN"
+            )
+        )
+    }
+
+    fun toggleRouteRule(ruleId: String) {
+        saveRoutingPolicy(
+            routingPolicy.copy(
+                routeRules = routingPolicy.routeRules.map { rule ->
+                    if (rule.id == ruleId) rule.copy(enabled = !rule.enabled) else rule
+                }
+            )
+        )
+    }
+
+    fun cycleRouteRuleAction(ruleId: String) {
+        val actions = listOf("VPN", "DIRECT", "BLOCK")
+        saveRoutingPolicy(
+            routingPolicy.copy(
+                routeRules = routingPolicy.routeRules.map { rule ->
+                    if (rule.id == ruleId) {
+                        val nextAction = actions[(actions.indexOf(rule.action).coerceAtLeast(0) + 1) % actions.size]
+                        rule.copy(action = nextAction)
+                    } else {
+                        rule
+                    }
+                }
+            )
+        )
+    }
+
+    fun addDirectDomainRule(domain: String) {
+        val value = domain.trim().removePrefix(".").lowercase()
+        if (value.isBlank()) {
+            routingNotice = "укажите домен"
+            return
+        }
+        val nextPriority = (routingPolicy.routeRules.maxOfOrNull { it.priority } ?: 500) + 100
+        val rule = RouteRule(
+            id = "",
+            source = "USER",
+            defaultRuleKey = null,
+            name = "Домен напрямую",
+            description = "",
+            enabled = true,
+            priority = nextPriority,
+            matchType = "DOMAIN_SUFFIX",
+            values = listOf(value),
+            action = "DIRECT",
+            editable = true
+        )
+        saveRoutingPolicy(routingPolicy.copy(routeRules = routingPolicy.routeRules + rule))
+    }
+
+    fun deleteRouteRule(ruleId: String) {
+        saveRoutingPolicy(
+            routingPolicy.copy(routeRules = routingPolicy.routeRules.filterNot { it.id == ruleId && it.source == "USER" })
+        )
     }
 
     fun cycleConnection() {
         if (state == LinkState.Connecting) return
         userTouchedConnection = true
         if (state == LinkState.Off) {
+            if (showingTelegramConfigs && !selectedServer.available) {
+                apiNotice = "Выбранный Telegram-конфиг отключен на ноде"
+                return
+            }
+            if (showingTelegramConfigs && selectedServer.vlessUri.isNullOrBlank()) {
+                apiNotice = "Сначала выберите Telegram-конфиг с VLESS-ссылкой"
+                return
+            }
             val prepareIntent = VpnService.prepare(context)
             if (prepareIntent != null) {
                 state = LinkState.Connecting
@@ -298,6 +460,7 @@ fun SovietVpnApp(
                         servers = serverNodes,
                         selectedId = selectedServerId,
                         nightTheme = darkRoom,
+                        telegramMode = showingTelegramConfigs,
                         onSelect = { selectedServerId = it }
                     )
 
@@ -307,6 +470,7 @@ fun SovietVpnApp(
                         killSwitch = killSwitch,
                         darkRoom = darkRoom,
                         notices = notices,
+                        routeRulesCount = routingPolicy.routeRules.count { it.enabled },
                         telegramAccount = telegramAccount,
                         telegramStatus = telegramNotice,
                         onDns = { dnsCheck = !dnsCheck },
@@ -314,7 +478,21 @@ fun SovietVpnApp(
                         onKill = { killSwitch = !killSwitch },
                         onDark = { darkRoom = !darkRoom },
                         onNotices = { notices = !notices },
+                        onRouting = { screen = AppScreen.Routing },
                         onTelegramLogin = ::openTelegramLogin
+                    )
+
+                    AppScreen.Routing -> RoutingScreen(
+                        policy = routingPolicy,
+                        notice = routingNotice,
+                        nightTheme = darkRoom,
+                        onBack = { screen = AppScreen.Settings },
+                        onRefresh = ::refreshRoutingPolicy,
+                        onToggleDefaultRoute = ::toggleDefaultRoute,
+                        onToggleRule = ::toggleRouteRule,
+                        onCycleRuleAction = ::cycleRouteRuleAction,
+                        onAddDirectDomain = ::addDirectDomainRule,
+                        onDeleteRule = ::deleteRouteRule
                     )
 
                     AppScreen.Speed -> SpeedScreen(nightTheme = darkRoom)
@@ -335,7 +513,11 @@ fun SovietVpnApp(
             }
 
             BottomNav(
-                current = if (screen == AppScreen.Servers) AppScreen.Home else screen,
+                current = when (screen) {
+                    AppScreen.Servers -> AppScreen.Home
+                    AppScreen.Routing -> AppScreen.Settings
+                    else -> screen
+                },
                 onScreen = { screen = it },
                 light = !darkRoom,
                 modifier = Modifier

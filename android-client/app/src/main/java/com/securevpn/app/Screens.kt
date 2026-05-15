@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -35,6 +37,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.securevpn.app.data.RouteRule
+import com.securevpn.app.data.RoutingPolicy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -158,13 +162,17 @@ fun ServersScreen(
     servers: List<ServerNode>,
     selectedId: String,
     nightTheme: Boolean,
+    telegramMode: Boolean,
     onSelect: (String) -> Unit
 ) {
     var stampingId by remember { mutableStateOf<String?>(null) }
-    val selected = servers.firstOrNull { it.id == selectedId } ?: servers.first()
+    val selected = servers.firstOrNull { it.id == selectedId } ?: servers.firstOrNull()
     val background = if (nightTheme) BurgundyDark else Paper
     val primary = if (nightTheme) Gold else Burgundy
     val bodyText = if (nightTheme) Bone else InkSoft
+    val title = if (telegramMode) "ВАШИ КОНФИГИ" else "УЗЛЫ СВЯЗИ"
+    val subtitle = if (telegramMode) "выберите пропускъ Telegram — включимъ его" else "выберите станцію — поставимъ штампъ"
+    val sectionTitle = if (telegramMode) "§ КОНФИГИ TELEGRAM (${servers.size})" else "§ ВСЕ СТАНЦІИ (${servers.size})"
 
     LaunchedEffect(stampingId) {
         val id = stampingId ?: return@LaunchedEffect
@@ -188,8 +196,8 @@ fun ServersScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 ScreenHeader(
-                    title = "УЗЛЫ СВЯЗИ",
-                    subtitle = "выберите станцію — поставимъ штампъ",
+                    title = title,
+                    subtitle = subtitle,
                     color = primary,
                     subtitleColor = bodyText,
                     titleSize = 25
@@ -198,11 +206,11 @@ fun ServersScreen(
 
             Box(Modifier.height(2.dp).fillMaxWidth().background(if (nightTheme) GoldDeep else Burgundy))
 
-            CurrentServerCard(selected, nightTheme = nightTheme)
-            SearchBox(nightTheme = nightTheme)
+            selected?.let { CurrentServerCard(it, nightTheme = nightTheme) }
+            SearchBox(nightTheme = nightTheme, telegramMode = telegramMode)
 
             Text(
-                text = "§ ВСЕ СТАНЦІИ (${servers.size})",
+                text = sectionTitle,
                 color = GoldDeep,
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
@@ -217,6 +225,31 @@ fun ServersScreen(
                     .border(1.dp, GoldDeep)
                     .background(if (nightTheme) Color(0x4D000000) else Color(0x22FFFFFF))
             ) {
+                if (servers.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(148.dp)
+                                .padding(horizontal = 16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (telegramMode) {
+                                    "для привязанного Telegram пока нет конфиговъ"
+                                } else {
+                                    "станціи пока не загружены"
+                                },
+                                color = bodyText,
+                                fontFamily = Playfair,
+                                fontStyle = FontStyle.Italic,
+                                fontSize = 13.sp,
+                                lineHeight = 15.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
                 items(servers) { server ->
                     ServerRow(
                         server = server,
@@ -229,7 +262,7 @@ fun ServersScreen(
             }
 
             Text(
-                "списокъ узловъ свѣренъ съ Главсвязью ★ 1949",
+                if (telegramMode) "конфиги свѣрены по привязанному Telegram ★ 1949" else "списокъ узловъ свѣренъ съ Главсвязью ★ 1949",
                 color = GoldDeep.copy(alpha = 0.72f),
                 fontFamily = Playfair,
                 fontStyle = FontStyle.Italic,
@@ -250,6 +283,7 @@ fun SettingsScreen(
     killSwitch: Boolean,
     darkRoom: Boolean,
     notices: Boolean,
+    routeRulesCount: Int,
     telegramAccount: com.securevpn.app.data.TelegramAccount?,
     telegramStatus: String?,
     onDns: () -> Unit,
@@ -257,6 +291,7 @@ fun SettingsScreen(
     onKill: () -> Unit,
     onDark: () -> Unit,
     onNotices: () -> Unit,
+    onRouting: () -> Unit,
     onTelegramLogin: () -> Unit
 ) {
     val primary = if (darkRoom) Gold else Burgundy
@@ -305,7 +340,7 @@ fun SettingsScreen(
                 SettingsSection("ДИСЦИПЛИНА", primary = primary, border = line, panel = panel) {
                     SettingsRow("2.1", "Авто-подключение", if (autoConnect) "включено · при запуске устройства" else "выключено · при запуске устройства", checked = autoConnect, onToggle = onAuto, text = text, soft = soft, night = darkRoom)
                     SettingsRow("2.2", "Стопъ-кранъ", if (killSwitch) "включено · прерывать связь при обрывѣ" else "выключено · прерывать связь при обрывѣ", checked = killSwitch, onToggle = onKill, text = text, soft = soft, night = darkRoom)
-                    SettingsRow("2.3", "Раздельный туннель", "3 приложенія", text = text, soft = soft)
+                    SettingsRow("2.3", "Маршрутизация", "$routeRulesCount правилъ активно", onToggle = onRouting, text = text, soft = soft)
                 }
                 SettingsSection("ВНѢШНІЙ ВИДЪ", primary = primary, border = line, panel = panel) {
                     SettingsRow("3.1", "Ночная смена", if (darkRoom) "включено · ночной видъ" else "выключено · дневной видъ", checked = darkRoom, onToggle = onDark, text = text, soft = soft, night = darkRoom)
@@ -323,6 +358,202 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+@Composable
+fun RoutingScreen(
+    policy: RoutingPolicy,
+    notice: String?,
+    nightTheme: Boolean,
+    onBack: () -> Unit,
+    onRefresh: () -> Unit,
+    onToggleDefaultRoute: () -> Unit,
+    onToggleRule: (String) -> Unit,
+    onCycleRuleAction: (String) -> Unit,
+    onAddDirectDomain: (String) -> Unit,
+    onDeleteRule: (String) -> Unit
+) {
+    var domainInput by remember { mutableStateOf("") }
+    val primary = if (nightTheme) Gold else Burgundy
+    val text = if (nightTheme) BoneLight else Ink
+    val soft = if (nightTheme) Bone else InkSoft
+    val line = if (nightTheme) GoldDeep else Ink
+    val panel = if (nightTheme) Color(0x66200808) else Color.White.copy(alpha = 0.35f)
+    val defaultIsVpn = policy.defaultRoute == "VPN"
+
+    PosterFrame(background = if (nightTheme) BurgundyDark else Paper, dark = nightTheme) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+            ) {
+                ScreenHeader(
+                    title = "МАРШРУТЫ\nТРАФИКА",
+                    subtitle = "правила прохождения пакетов",
+                    color = primary,
+                    subtitleColor = soft,
+                    titleSize = 28
+                )
+            }
+
+            Box(Modifier.height(3.dp).fillMaxWidth().background(line))
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 14.dp)
+                    .padding(top = 10.dp, bottom = 76.dp)
+            ) {
+                item {
+                    SettingsSection("ОБЩИЙ ХОД", primary = primary, border = line, panel = panel) {
+                        SettingsRow("0.1", "По умолчанию", if (defaultIsVpn) "через VPN" else "напрямую", checked = defaultIsVpn, onToggle = onToggleDefaultRoute, text = text, soft = soft, night = nightTheme)
+                        SettingsRow("0.2", "Синхронизация", notice ?: "версия ${policy.version}", onToggle = onRefresh, text = text, soft = soft)
+                        SettingsRow("0.3", "Назадъ", "вернуться к настройкам", onToggle = onBack, text = text, soft = soft)
+                    }
+                }
+
+                item {
+                    SettingsSection("ДОБАВИТЬ ПРАВИЛО", primary = primary, border = line, panel = panel) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = domainInput,
+                                onValueChange = { domainInput = it },
+                                singleLine = true,
+                                label = { Text("домен", fontSize = 10.sp) },
+                                modifier = Modifier.weight(1f)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .height(48.dp)
+                                    .width(86.dp)
+                                    .border(1.dp, primary)
+                                    .clickable {
+                                        onAddDirectDomain(domainInput)
+                                        domainInput = ""
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("DIRECT", color = primary, fontFamily = Russo, fontSize = 10.sp)
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    SettingsSection("ПРАВИЛА", primary = primary, border = line, panel = panel) {
+                        if (policy.routeRules.isEmpty()) {
+                            SettingsRow("1.0", "Правилъ нетъ", "весь трафик идет по общему ходу", text = text, soft = soft)
+                        }
+                    }
+                }
+                items(policy.routeRules, key = { "${it.source}:${it.defaultRuleKey}:${it.id}" }) { rule ->
+                    RouteRuleRow(
+                        rule = rule,
+                        index = policy.routeRules.indexOf(rule) + 1,
+                        primary = primary,
+                        text = text,
+                        soft = soft,
+                        nightTheme = nightTheme,
+                        onToggleRule = onToggleRule,
+                        onCycleRuleAction = onCycleRuleAction,
+                        onDeleteRule = onDeleteRule
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RouteRuleRow(
+    rule: RouteRule,
+    index: Int,
+    primary: Color,
+    text: Color,
+    soft: Color,
+    nightTheme: Boolean,
+    onToggleRule: (String) -> Unit,
+    onCycleRuleAction: (String) -> Unit,
+    onDeleteRule: (String) -> Unit
+) {
+    val subtitle = listOf(
+        routeMatchLabel(rule.matchType),
+        rule.values.take(2).joinToString(", "),
+        routeActionLabel(rule.action)
+    ).filter { it.isNotBlank() }.joinToString(" · ")
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, primary.copy(alpha = 0.7f))
+            .background(if (nightTheme) Color(0x33000000) else Color.White.copy(alpha = 0.22f))
+    ) {
+        SettingsRow(
+            index = "1.$index",
+            title = rule.name,
+            subtitle = subtitle,
+            checked = rule.enabled,
+            onToggle = { onToggleRule(rule.id) },
+            text = text,
+            soft = soft,
+            night = nightTheme
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(34.dp)
+                .padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                if (rule.source == "DEFAULT") "серверное правило" else "моё правило",
+                color = soft,
+                fontFamily = Playfair,
+                fontStyle = FontStyle.Italic,
+                fontSize = 10.sp,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                routeActionLabel(rule.action),
+                color = primary,
+                fontFamily = Russo,
+                fontSize = 10.sp,
+                modifier = Modifier
+                    .clickable { onCycleRuleAction(rule.id) }
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            )
+            if (rule.source == "USER") {
+                Text(
+                    "УДАЛИТЬ",
+                    color = OrangeSignal,
+                    fontFamily = Russo,
+                    fontSize = 10.sp,
+                    modifier = Modifier
+                        .clickable { onDeleteRule(rule.id) }
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                )
+            }
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+}
+
+private fun routeActionLabel(action: String): String = when (action) {
+    "DIRECT" -> "напрямую"
+    "BLOCK" -> "блок"
+    else -> "через VPN"
+}
+
+private fun routeMatchLabel(matchType: String): String = when (matchType) {
+    "DOMAIN_KEYWORD" -> "слово домена"
+    "IP_CIDR" -> "IP-сеть"
+    "APP_PACKAGE" -> "приложение"
+    else -> "домен"
 }
 
 @Composable

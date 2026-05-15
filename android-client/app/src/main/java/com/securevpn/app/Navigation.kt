@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 
 fun AppScreen.screenOrder(): Int = when (this) {
     AppScreen.Settings -> 0
+    AppScreen.Routing -> 0
     AppScreen.Home -> 1
     AppScreen.Servers -> 1
     AppScreen.Speed -> 2

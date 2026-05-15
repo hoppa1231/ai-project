@@ -1,10 +1,12 @@
 package com.securevpn.app.vpn
 
+import com.securevpn.app.data.RouteRule
+import com.securevpn.app.data.RoutingPolicy
 import org.json.JSONArray
 import org.json.JSONObject
 
 object SingBoxConfigFactory {
-    fun fromVlessUri(vlessUri: String): String {
+    fun fromVlessUri(vlessUri: String, policy: RoutingPolicy = RoutingPolicy.default()): String {
         val profile = parseVlessUri(vlessUri)
         val outbound = JSONObject()
             .put("type", "vless")
@@ -52,11 +54,17 @@ object SingBoxConfigFactory {
                     .put("outbound", "direct")
             )
 
+        policy.routeRules
+            .filter { it.enabled && it.values.isNotEmpty() }
+            .sortedBy { it.priority }
+            .mapNotNull(::routeRuleJson)
+            .forEach(routeRules::put)
+
         val route = JSONObject()
             .put("auto_detect_interface", true)
             .put("default_domain_resolver", BOOTSTRAP_DNS_TAG)
             .put("rules", routeRules)
-            .put("final", "proxy")
+            .put("final", if (policy.defaultRoute == "DIRECT") "direct" else "proxy")
 
         if (profile.host.isIpv4Address()) {
             routeRules.put(
@@ -119,6 +127,25 @@ object SingBoxConfigFactory {
             )
             .put("route", route)
             .toString()
+    }
+
+    private fun routeRuleJson(rule: RouteRule): JSONObject? {
+        val outbound = when (rule.action) {
+            "DIRECT" -> "direct"
+            "BLOCK" -> "block"
+            else -> "proxy"
+        }
+        val matchValues = JSONArray().also { array -> rule.values.forEach(array::put) }
+        val matcher = when (rule.matchType) {
+            "DOMAIN_SUFFIX" -> "domain_suffix"
+            "DOMAIN_KEYWORD" -> "domain_keyword"
+            "IP_CIDR" -> "ip_cidr"
+            "APP_PACKAGE" -> "package_name"
+            else -> return null
+        }
+        return JSONObject()
+            .put(matcher, matchValues)
+            .put("outbound", outbound)
     }
 
     private fun routeExcludeAddresses(profile: VlessProfile): JSONArray {

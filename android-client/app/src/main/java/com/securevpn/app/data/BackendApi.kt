@@ -26,6 +26,48 @@ class BackendApi(
         return VpnBootstrap(nodes = nodes, quota = quota, activeConfigId = activeConfigId)
     }
 
+    suspend fun loadRoutingPolicy(): RoutingPolicy {
+        val response = authorizedRequest(path = "/policy/current")
+        return parseRoutingPolicy(response).also { cacheRoutingPolicy(response) }
+    }
+
+    fun cachedRoutingPolicy(): RoutingPolicy {
+        val cached = prefs.getString(KEY_ROUTING_POLICY_JSON, null)
+        return cached?.let { runCatching { parseRoutingPolicy(it) }.getOrNull() }
+            ?: RoutingPolicy.default()
+    }
+
+    suspend fun updateRoutingPolicy(policy: RoutingPolicy): RoutingPolicy {
+        val rules = JSONArray()
+        policy.routeRules.forEach { rule ->
+            rules.put(
+                JSONObject()
+                    .apply {
+                        if (rule.source == "USER" && rule.id.isNotBlank()) put("id", rule.id)
+                        rule.defaultRuleKey?.let { put("defaultRuleKey", it) }
+                    }
+                    .put("name", rule.name)
+                    .put("enabled", rule.enabled)
+                    .put("priority", rule.priority)
+                    .put("matchType", rule.matchType)
+                    .put("values", JSONArray(rule.values))
+                    .put("action", rule.action)
+            )
+        }
+        val body = JSONObject()
+            .put("ifVersion", policy.version)
+            .put("defaultRoute", policy.defaultRoute)
+            .put("includeApps", JSONArray())
+            .put("excludeApps", JSONArray())
+            .put("includeDomains", JSONArray())
+            .put("excludeDomains", JSONArray())
+            .put("routeRules", rules)
+            .toString()
+
+        val response = authorizedRequest(path = "/policy/current", method = "PUT", body = body)
+        return parseRoutingPolicy(response).also { cacheRoutingPolicy(response) }
+    }
+
     suspend fun issueVpnConfig(region: String? = null, exitNodeId: String? = null): IssuedConfig {
         val session = ensureSession()
         val body = JSONObject()
@@ -138,6 +180,10 @@ class BackendApi(
                 add(
                     TelegramLinkedConfig(
                         nodeId = item.getString("nodeId"),
+                        configName = item.optStringOrNull("configName")
+                            ?: item.optStringOrNull("subId")
+                            ?: item.optStringOrNull("email")
+                            ?: "Telegram config ${index + 1}",
                         nodeName = item.optString("nodeName", "VPN node"),
                         region = item.optString("region", ""),
                         email = item.getString("email"),
@@ -348,6 +394,46 @@ class BackendApi(
         )
     }
 
+    private fun parseRoutingPolicy(response: String): RoutingPolicy {
+        val json = JSONObject(response)
+        val rules = json.optJSONArray("routeRules") ?: JSONArray()
+        return RoutingPolicy(
+            version = json.optInt("version", 1),
+            defaultRoute = json.optString("defaultRoute", "VPN").uppercase(),
+            routeRules = buildList {
+                for (index in 0 until rules.length()) {
+                    val item = rules.getJSONObject(index)
+                    val values = item.optJSONArray("values") ?: JSONArray()
+                    add(
+                        RouteRule(
+                            id = item.optString("id"),
+                            source = item.optString("source", "USER").uppercase(),
+                            defaultRuleKey = item.optStringOrNull("defaultRuleKey"),
+                            name = item.optString("name", "Правило ${index + 1}"),
+                            description = item.optString("description", ""),
+                            enabled = item.optBoolean("enabled", true),
+                            priority = item.optInt("priority", (index + 1) * 100),
+                            matchType = item.optString("matchType", "DOMAIN_SUFFIX").uppercase(),
+                            values = buildList {
+                                for (valueIndex in 0 until values.length()) {
+                                    values.optString(valueIndex).takeIf { it.isNotBlank() }?.let(::add)
+                                }
+                            },
+                            action = item.optString("action", "VPN").uppercase(),
+                            editable = item.optBoolean("editable", true)
+                        )
+                    )
+                }
+            },
+            hash = json.optString("hash", ""),
+            updatedAt = json.optString("updatedAt", "")
+        )
+    }
+
+    private fun cacheRoutingPolicy(rawJson: String) {
+        prefs.edit().putString(KEY_ROUTING_POLICY_JSON, rawJson).apply()
+    }
+
     private fun getOrCreateDeviceFingerprint(): String {
         val existing = prefs.getString(KEY_DEVICE_FINGERPRINT, null)
         if (!existing.isNullOrBlank()) return existing
@@ -391,6 +477,7 @@ class BackendApi(
         private const val KEY_TELEGRAM_ID = "telegram_id"
         private const val KEY_TELEGRAM_USERNAME = "telegram_username"
         private const val KEY_TELEGRAM_FIRST_NAME = "telegram_first_name"
+        private const val KEY_ROUTING_POLICY_JSON = "routing_policy_json"
     }
 }
 
@@ -435,6 +522,36 @@ data class RevokeResult(
     val revokedAt: String? = null
 )
 
+data class RoutingPolicy(
+    val version: Int,
+    val defaultRoute: String,
+    val routeRules: List<RouteRule>,
+    val hash: String = "",
+    val updatedAt: String = ""
+) {
+    companion object {
+        fun default(): RoutingPolicy = RoutingPolicy(
+            version = 1,
+            defaultRoute = "VPN",
+            routeRules = emptyList()
+        )
+    }
+}
+
+data class RouteRule(
+    val id: String,
+    val source: String,
+    val defaultRuleKey: String?,
+    val name: String,
+    val description: String,
+    val enabled: Boolean,
+    val priority: Int,
+    val matchType: String,
+    val values: List<String>,
+    val action: String,
+    val editable: Boolean = true
+)
+
 data class TelegramAuthData(
     val id: Long,
     val authDate: Long,
@@ -468,6 +585,7 @@ sealed interface TelegramAppLoginResult {
 
 data class TelegramLinkedConfig(
     val nodeId: String,
+    val configName: String,
     val nodeName: String,
     val region: String,
     val email: String,
