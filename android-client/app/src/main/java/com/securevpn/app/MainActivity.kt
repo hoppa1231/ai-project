@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.VpnService
 import android.net.Uri
 import android.os.Bundle
+import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -44,6 +45,7 @@ import com.securevpn.app.data.RoutingPolicy
 import com.securevpn.app.data.TelegramAuthData
 import com.securevpn.app.ui.theme.SecureVpnTheme
 import com.securevpn.app.vpn.SingBoxTunnel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -114,6 +116,7 @@ fun SovietVpnApp(
     var telegramAccount by remember { mutableStateOf(api.telegramAccount()) }
     var telegramNotice by remember { mutableStateOf<String?>(telegramAccount?.let { "вход выполнен: ${it.displayName}" }) }
     var routingPolicy by remember { mutableStateOf(api.cachedRoutingPolicy()) }
+    var routingDraft by remember { mutableStateOf(routingPolicy) }
     var routingNotice by remember { mutableStateOf<String?>(null) }
     var showingTelegramConfigs by remember { mutableStateOf(telegramAccount != null) }
     var userTouchedConnection by remember { mutableStateOf(false) }
@@ -198,10 +201,13 @@ fun SovietVpnApp(
             runCatching { api.loadRoutingPolicy() }
                 .onSuccess {
                     routingPolicy = it
+                    routingDraft = it
                     routingNotice = "маршруты синхронизированы"
                 }
                 .onFailure { error ->
-                    routingPolicy = api.cachedRoutingPolicy()
+                    val cached = api.cachedRoutingPolicy()
+                    routingPolicy = cached
+                    routingDraft = cached
                     routingNotice = error.message?.take(80) ?: "используется локальная копия"
                 }
         }
@@ -252,6 +258,11 @@ fun SovietVpnApp(
         telegramAuthEvents.collect(::completeTelegramLogin)
     }
 
+    fun hasRoutingDraftChanges(): Boolean {
+        return routingDraft.defaultRoute != routingPolicy.defaultRoute ||
+            routingDraft.routeRules != routingPolicy.routeRules
+    }
+
     startConnection = {
         val vlessUri = selectedServer.vlessUri
         if (showingTelegramConfigs && vlessUri.isNullOrBlank()) {
@@ -264,9 +275,21 @@ fun SovietVpnApp(
             state = LinkState.Connecting
             scope.launch {
                 runCatching {
-                    val policy = runCatching { api.loadRoutingPolicy() }
-                        .onSuccess { routingPolicy = it }
-                        .getOrElse { api.cachedRoutingPolicy() }
+                    val policy = if (hasRoutingDraftChanges()) {
+                        routingDraft
+                    } else {
+                        runCatching { api.loadRoutingPolicy() }
+                            .onSuccess {
+                                routingPolicy = it
+                                routingDraft = it
+                            }
+                            .getOrElse {
+                                api.cachedRoutingPolicy().also { cached ->
+                                    routingPolicy = cached
+                                    routingDraft = cached
+                                }
+                            }
+                    }
                     SingBoxTunnel(context).start(vlessUri ?: WorkingVlessUri, policy)
                 }
                     .onSuccess {
@@ -285,9 +308,14 @@ fun SovietVpnApp(
     fun saveRoutingPolicy(nextPolicy: RoutingPolicy) {
         routingNotice = "сохраняем маршруты..."
         scope.launch {
+            if (state == LinkState.On) {
+                runCatching { SingBoxTunnel(context).start(selectedServer.vlessUri ?: WorkingVlessUri, nextPolicy) }
+                delay(350)
+            }
             runCatching { api.updateRoutingPolicy(nextPolicy) }
                 .onSuccess { saved ->
                     routingPolicy = saved
+                    routingDraft = saved
                     routingNotice = "маршруты утверждены"
                     if (state == LinkState.On) {
                         runCatching {
@@ -298,23 +326,41 @@ fun SovietVpnApp(
                     }
                 }
                 .onFailure { error ->
-                    routingNotice = error.message?.take(90) ?: "не удалось сохранить маршруты"
+                    routingDraft = nextPolicy
+                    routingNotice = error.message?.take(90) ?: "локально применено, сервер недоступен"
                 }
         }
     }
 
+    fun updateRoutingDraft(nextPolicy: RoutingPolicy) {
+        routingDraft = nextPolicy
+        routingNotice = if (state == LinkState.On) {
+            "применено локально · нажмите сохранить"
+        } else {
+            "изменено локально · нажмите сохранить"
+        }
+        if (state == LinkState.On) {
+            scope.launch {
+                runCatching { SingBoxTunnel(context).start(selectedServer.vlessUri ?: WorkingVlessUri, nextPolicy) }
+                    .onFailure { error ->
+                        apiNotice = error.message?.take(90) ?: "Локальные маршруты требуют перезапуска"
+                    }
+            }
+        }
+    }
+
     fun toggleDefaultRoute() {
-        saveRoutingPolicy(
-            routingPolicy.copy(
-                defaultRoute = if (routingPolicy.defaultRoute == "VPN") "DIRECT" else "VPN"
+        updateRoutingDraft(
+            routingDraft.copy(
+                defaultRoute = if (routingDraft.defaultRoute == "VPN") "DIRECT" else "VPN"
             )
         )
     }
 
     fun toggleRouteRule(ruleId: String) {
-        saveRoutingPolicy(
-            routingPolicy.copy(
-                routeRules = routingPolicy.routeRules.map { rule ->
+        updateRoutingDraft(
+            routingDraft.copy(
+                routeRules = routingDraft.routeRules.map { rule ->
                     if (rule.id == ruleId) rule.copy(enabled = !rule.enabled) else rule
                 }
             )
@@ -323,9 +369,9 @@ fun SovietVpnApp(
 
     fun cycleRouteRuleAction(ruleId: String) {
         val actions = listOf("VPN", "DIRECT", "BLOCK")
-        saveRoutingPolicy(
-            routingPolicy.copy(
-                routeRules = routingPolicy.routeRules.map { rule ->
+        updateRoutingDraft(
+            routingDraft.copy(
+                routeRules = routingDraft.routeRules.map { rule ->
                     if (rule.id == ruleId) {
                         val nextAction = actions[(actions.indexOf(rule.action).coerceAtLeast(0) + 1) % actions.size]
                         rule.copy(action = nextAction)
@@ -337,32 +383,32 @@ fun SovietVpnApp(
         )
     }
 
-    fun addDirectDomainRule(domain: String) {
-        val value = domain.trim().removePrefix(".").lowercase()
-        if (value.isBlank()) {
-            routingNotice = "укажите домен"
+    fun addRoutingRule(matchType: String, action: String, rawValues: String) {
+        val values = parseRouteRuleValues(rawValues, matchType)
+        if (values.isEmpty()) {
+            routingNotice = "укажите значения"
             return
         }
-        val nextPriority = (routingPolicy.routeRules.maxOfOrNull { it.priority } ?: 500) + 100
+        val nextPriority = (routingDraft.routeRules.maxOfOrNull { it.priority } ?: 500) + 100
         val rule = RouteRule(
-            id = "",
+            id = "local-${System.nanoTime()}",
             source = "USER",
             defaultRuleKey = null,
-            name = "Домен напрямую",
+            name = routeRuleName(matchType, action),
             description = "",
             enabled = true,
             priority = nextPriority,
-            matchType = "DOMAIN_SUFFIX",
-            values = listOf(value),
-            action = "DIRECT",
+            matchType = matchType,
+            values = values,
+            action = action,
             editable = true
         )
-        saveRoutingPolicy(routingPolicy.copy(routeRules = routingPolicy.routeRules + rule))
+        updateRoutingDraft(routingDraft.copy(routeRules = routingDraft.routeRules + rule))
     }
 
     fun deleteRouteRule(ruleId: String) {
-        saveRoutingPolicy(
-            routingPolicy.copy(routeRules = routingPolicy.routeRules.filterNot { it.id == ruleId && it.source == "USER" })
+        updateRoutingDraft(
+            routingDraft.copy(routeRules = routingDraft.routeRules.filterNot { it.id == ruleId && it.source == "USER" })
         )
     }
 
@@ -399,6 +445,10 @@ fun SovietVpnApp(
                     }
             }
         }
+    }
+
+    BackHandler(enabled = screen == AppScreen.Routing) {
+        screen = AppScreen.Settings
     }
 
     BoxWithConstraints(
@@ -470,7 +520,7 @@ fun SovietVpnApp(
                         killSwitch = killSwitch,
                         darkRoom = darkRoom,
                         notices = notices,
-                        routeRulesCount = routingPolicy.routeRules.count { it.enabled },
+                        routeRulesCount = routingDraft.routeRules.count { it.enabled },
                         telegramAccount = telegramAccount,
                         telegramStatus = telegramNotice,
                         onDns = { dnsCheck = !dnsCheck },
@@ -483,15 +533,23 @@ fun SovietVpnApp(
                     )
 
                     AppScreen.Routing -> RoutingScreen(
-                        policy = routingPolicy,
+                        policy = routingDraft,
                         notice = routingNotice,
+                        hasUnsyncedChanges = hasRoutingDraftChanges(),
                         nightTheme = darkRoom,
                         onBack = { screen = AppScreen.Settings },
                         onRefresh = ::refreshRoutingPolicy,
+                        onSave = {
+                            if (hasRoutingDraftChanges()) {
+                                saveRoutingPolicy(routingDraft)
+                            } else {
+                                routingNotice = "локальные правила уже сохранены"
+                            }
+                        },
                         onToggleDefaultRoute = ::toggleDefaultRoute,
                         onToggleRule = ::toggleRouteRule,
                         onCycleRuleAction = ::cycleRouteRuleAction,
-                        onAddDirectDomain = ::addDirectDomainRule,
+                        onAddRule = ::addRoutingRule,
                         onDeleteRule = ::deleteRouteRule
                     )
 
@@ -530,6 +588,39 @@ fun SovietVpnApp(
 
 private fun JSONObject.optStringOrNull(name: String): String? {
     return optString(name).takeIf { it.isNotBlank() }
+}
+
+private fun parseRouteRuleValues(raw: String, matchType: String): List<String> {
+    return raw.split(',', ';', '\n', '\t', ' ')
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .map { value ->
+            when (matchType) {
+                "DOMAIN", "DOMAIN_SUFFIX", "DOMAIN_KEYWORD" -> value.removePrefix(".").lowercase()
+                "GEOIP" -> value.lowercase().removePrefix("geoip-")
+                "APP_PACKAGE" -> value.lowercase()
+                else -> value
+            }
+        }
+        .filter { it.isNotBlank() }
+        .distinct()
+}
+
+private fun routeRuleName(matchType: String, action: String): String {
+    val subject = when (matchType) {
+        "DOMAIN" -> "Домен"
+        "DOMAIN_KEYWORD" -> "Слова домена"
+        "IP_CIDR" -> "IP-сети"
+        "APP_PACKAGE" -> "Приложения"
+        "GEOIP" -> "GeoIP"
+        else -> "Домены"
+    }
+    val route = when (action) {
+        "DIRECT" -> "напрямую"
+        "BLOCK" -> "блок"
+        else -> "через VPN"
+    }
+    return "$subject $route"
 }
 
 @Preview(showBackground = true, showSystemUi = true)

@@ -2,6 +2,7 @@ package com.example.modules.admin
 
 import com.example.common.ApiException
 import com.example.config.AppContext
+import com.example.db.NodeEntity
 import com.example.db.repo.CreateNodeParams
 import com.example.db.repo.UpdateNodeParams
 import com.example.security.requireRole
@@ -29,6 +30,18 @@ data class AdminNodeResponse(
     val id: String,
     val name: String,
     val region: String,
+    val countryCode: String,
+    val hostname: String,
+    val publicAddress: String,
+    val publicPort: Int,
+    val apiHost: String,
+    val apiPort: Int,
+    val inboundTag: String,
+    val realityServerName: String,
+    val realityPublicKey: String,
+    val realityShortId: String,
+    val realityFingerprint: String,
+    val realityAlpn: List<String>,
     val status: String,
     val health: String,
     val weight: Int,
@@ -58,6 +71,20 @@ data class CreateNodeRequest(
 
 @Serializable
 data class PatchNodeRequest(
+    val name: String? = null,
+    val region: String? = null,
+    val countryCode: String? = null,
+    val hostname: String? = null,
+    val publicAddress: String? = null,
+    val publicPort: Int? = null,
+    val apiHost: String? = null,
+    val apiPort: Int? = null,
+    val inboundTag: String? = null,
+    val realityServerName: String? = null,
+    val realityPublicKey: String? = null,
+    val realityShortId: String? = null,
+    val realityFingerprint: String? = null,
+    val realityAlpn: List<String>? = null,
     val status: String? = null,
     val weight: Int? = null,
     val maxClients: Int? = null
@@ -147,18 +174,7 @@ fun Application.configureAdminRoutes(context: AppContext) {
                         ensureAdmin(principal)
 
                         call.respond(
-                            context.nodes.listAll().map {
-                                AdminNodeResponse(
-                                    id = it.id.toString(),
-                                    name = it.name,
-                                    region = it.region,
-                                    status = it.status,
-                                    health = it.health,
-                                    weight = it.weight,
-                                    load = it.load,
-                                    maxClients = it.maxClients
-                                )
-                            }
+                            context.nodes.listAll().map(::toAdminNodeResponse)
                         )
                     }
 
@@ -195,16 +211,7 @@ fun Application.configureAdminRoutes(context: AppContext) {
 
                         call.respond(
                             HttpStatusCode.Created,
-                            AdminNodeResponse(
-                                id = node.id.toString(),
-                                name = node.name,
-                                region = node.region,
-                                status = node.status,
-                                health = node.health,
-                                weight = node.weight,
-                                load = node.load,
-                                maxClients = node.maxClients
-                            )
+                            toAdminNodeResponse(node)
                         )
                     }
 
@@ -220,27 +227,34 @@ fun Application.configureAdminRoutes(context: AppContext) {
                         }
 
                         val body = call.receive<PatchNodeRequest>()
-                        val node = context.nodes.update(
-                            id = nodeId,
-                            params = UpdateNodeParams(
-                                status = body.status?.uppercase(),
-                                weight = body.weight,
-                                maxClients = body.maxClients
+                        val node = try {
+                            context.nodes.update(
+                                id = nodeId,
+                                params = UpdateNodeParams(
+                                    name = body.name,
+                                    region = body.region,
+                                    countryCode = body.countryCode,
+                                    hostname = body.hostname,
+                                    publicAddress = body.publicAddress,
+                                    publicPort = body.publicPort,
+                                    apiHost = body.apiHost,
+                                    apiPort = body.apiPort,
+                                    inboundTag = body.inboundTag,
+                                    realityServerName = body.realityServerName,
+                                    realityPublicKey = body.realityPublicKey,
+                                    realityShortId = body.realityShortId,
+                                    realityFingerprint = body.realityFingerprint,
+                                    realityAlpn = body.realityAlpn,
+                                    status = body.status?.uppercase(),
+                                    weight = body.weight,
+                                    maxClients = body.maxClients
+                                )
                             )
-                        ) ?: throw ApiException(HttpStatusCode.NotFound, "NODE_NOT_FOUND", "Node not found")
+                        } catch (_: DataAccessException) {
+                            throw ApiException(HttpStatusCode.Conflict, "NODE_CONFLICT", "Node with same unique parameters already exists")
+                        } ?: throw ApiException(HttpStatusCode.NotFound, "NODE_NOT_FOUND", "Node not found")
 
-                        call.respond(
-                            AdminNodeResponse(
-                                id = node.id.toString(),
-                                name = node.name,
-                                region = node.region,
-                                status = node.status,
-                                health = node.health,
-                                weight = node.weight,
-                                load = node.load,
-                                maxClients = node.maxClients
-                            )
-                        )
+                        call.respond(toAdminNodeResponse(node))
                     }
 
                     get("/{id}/clients") {
@@ -415,6 +429,31 @@ private fun parseNodeId(raw: String?): UUID {
     }
 }
 
+private fun toAdminNodeResponse(node: NodeEntity): AdminNodeResponse {
+    return AdminNodeResponse(
+        id = node.id.toString(),
+        name = node.name,
+        region = node.region,
+        countryCode = node.countryCode,
+        hostname = node.hostname,
+        publicAddress = node.publicAddress,
+        publicPort = node.publicPort,
+        apiHost = node.apiHost,
+        apiPort = node.apiPort,
+        inboundTag = node.inboundTag,
+        realityServerName = node.realityServerName,
+        realityPublicKey = node.realityPublicKey,
+        realityShortId = node.realityShortId,
+        realityFingerprint = node.realityFingerprint,
+        realityAlpn = node.realityAlpn,
+        status = node.status,
+        health = node.health,
+        weight = node.weight,
+        load = node.load,
+        maxClients = node.maxClients
+    )
+}
+
 private fun toNodeClientResponse(client: com.example.db.NodeClientInventoryEntity): NodeClientInventoryResponse {
     return NodeClientInventoryResponse(
         id = client.id.toString(),
@@ -576,6 +615,34 @@ private val adminPanelHtml = """
       <div class="message" id="nodesMessage"></div>
     </section>
 
+    <section id="editNodeSection" class="hidden">
+      <h2>Edit node</h2>
+      <div class="grid">
+        <label>Name<input id="editNodeName"></label>
+        <label>Region<input id="editNodeRegion" placeholder="ru"></label>
+        <label>Country code<input id="editNodeCountry" placeholder="RU" maxlength="2"></label>
+        <label>Hostname<input id="editNodeHostname"></label>
+        <label>Public address<input id="editNodePublicAddress"></label>
+        <label>Public port<input id="editNodePublicPort" type="number"></label>
+        <label>API host<input id="editNodeApiHost"></label>
+        <label>API port<input id="editNodeApiPort" type="number"></label>
+        <label>Inbound tag<input id="editNodeInboundTag"></label>
+        <label>Reality SNI<input id="editNodeRealityServerName"></label>
+        <label>Reality public key<input id="editNodeRealityPublicKey"></label>
+        <label>Reality short id<input id="editNodeRealityShortId"></label>
+        <label>Fingerprint<input id="editNodeRealityFingerprint"></label>
+        <label>ALPN<input id="editNodeRealityAlpn"></label>
+        <label>Status<select id="editNodeStatus"><option>ACTIVE</option><option>DRAINING</option><option>DISABLED</option></select></label>
+        <label>Weight<input id="editNodeWeight" type="number"></label>
+        <label>Max clients<input id="editNodeMaxClients" type="number"></label>
+      </div>
+      <div class="row">
+        <button id="saveEditedNodeBtn">Save changes</button>
+        <button class="secondary" id="cancelEditNodeBtn">Cancel</button>
+      </div>
+      <div class="message" id="editNodeMessage"></div>
+    </section>
+
     <section>
       <h2>Create node</h2>
       <div class="grid">
@@ -627,9 +694,11 @@ private val adminPanelHtml = """
     </section>
   </main>
   <script>
-    const state = { token: localStorage.getItem("adminToken") || "", nodes: [], selectedNode: null };
+    const state = { token: localStorage.getItem("adminToken") || "", nodes: [], selectedNode: null, editingNodeId: null };
     const el = (id) => document.getElementById(id);
     const gb = (bytes) => (Number(bytes || 0) / 1073741824).toFixed(2);
+    const splitAlpn = (value) => value.split(",").map((item) => item.trim()).filter(Boolean);
+    const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[ch]));
     const setMessage = (id, text, ok) => {
       const node = el(id);
       node.textContent = text || "";
@@ -681,10 +750,10 @@ private val adminPanelHtml = """
       state.nodes.forEach((node) => {
         const tr = document.createElement("tr");
         tr.innerHTML =
-          "<td data-label='Name'>" + node.name + "</td>" +
-          "<td data-label='Region'>" + node.region + "</td>" +
+          "<td data-label='Name'>" + esc(node.name) + "</td>" +
+          "<td data-label='Region'>" + esc(node.region) + "</td>" +
           "<td data-label='Status'><select data-field='status'><option>ACTIVE</option><option>DRAINING</option><option>DISABLED</option></select></td>" +
-          "<td data-label='Health'><span class='status " + (node.health === "HEALTHY" ? "ok" : "bad") + "'>" + node.health + "</span></td>" +
+          "<td data-label='Health'><span class='status " + (node.health === "HEALTHY" ? "ok" : "bad") + "'>" + esc(node.health) + "</span></td>" +
           "<td data-label='Load'>" + node.load + "</td>" +
           "<td data-label='Weight'><input data-field='weight' type='number' value='" + node.weight + "'></td>" +
           "<td data-label='Max clients'><input data-field='maxClients' type='number' value='" + node.maxClients + "'></td>" +
@@ -694,11 +763,15 @@ private val adminPanelHtml = """
         const save = document.createElement("button");
         save.textContent = "Save";
         save.onclick = () => updateNode(node.id, tr);
+        const edit = document.createElement("button");
+        edit.textContent = "Edit";
+        edit.className = "secondary";
+        edit.onclick = () => editNode(node.id);
         const clients = document.createElement("button");
         clients.textContent = "Clients";
         clients.className = "secondary";
         clients.onclick = () => syncClients(node.id, node.name);
-        actions.append(save, clients);
+        actions.append(save, edit, clients);
         el("nodesBody").appendChild(tr);
       });
     }
@@ -715,25 +788,70 @@ private val adminPanelHtml = """
       setMessage("nodesMessage", "Node updated", true);
       await loadNodes();
     }
-    async function createNode() {
-      const payload = {
-        name: el("nodeName").value,
-        region: el("nodeRegion").value,
-        countryCode: el("nodeCountry").value,
-        hostname: el("nodeHostname").value,
-        publicAddress: el("nodePublicAddress").value,
-        publicPort: Number(el("nodePublicPort").value),
-        apiHost: el("nodeApiHost").value,
-        apiPort: Number(el("nodeApiPort").value),
-        inboundTag: el("nodeInboundTag").value,
-        realityServerName: el("nodeRealityServerName").value,
-        realityPublicKey: el("nodeRealityPublicKey").value,
-        realityShortId: el("nodeRealityShortId").value,
-        realityFingerprint: el("nodeRealityFingerprint").value,
-        realityAlpn: el("nodeRealityAlpn").value.split(",").map((item) => item.trim()).filter(Boolean),
-        weight: Number(el("nodeWeight").value),
-        maxClients: Number(el("nodeMaxClients").value)
+    function nodePayload(prefix) {
+      return {
+        name: el(prefix + "Name").value,
+        region: el(prefix + "Region").value,
+        countryCode: el(prefix + "Country").value,
+        hostname: el(prefix + "Hostname").value,
+        publicAddress: el(prefix + "PublicAddress").value,
+        publicPort: Number(el(prefix + "PublicPort").value),
+        apiHost: el(prefix + "ApiHost").value,
+        apiPort: Number(el(prefix + "ApiPort").value),
+        inboundTag: el(prefix + "InboundTag").value,
+        realityServerName: el(prefix + "RealityServerName").value,
+        realityPublicKey: el(prefix + "RealityPublicKey").value,
+        realityShortId: el(prefix + "RealityShortId").value,
+        realityFingerprint: el(prefix + "RealityFingerprint").value,
+        realityAlpn: splitAlpn(el(prefix + "RealityAlpn").value),
+        weight: Number(el(prefix + "Weight").value),
+        maxClients: Number(el(prefix + "MaxClients").value)
       };
+    }
+    function editNode(id) {
+      const node = state.nodes.find((item) => item.id === id);
+      if (!node) return;
+      state.editingNodeId = id;
+      el("editNodeName").value = node.name;
+      el("editNodeRegion").value = node.region;
+      el("editNodeCountry").value = node.countryCode;
+      el("editNodeHostname").value = node.hostname;
+      el("editNodePublicAddress").value = node.publicAddress;
+      el("editNodePublicPort").value = node.publicPort;
+      el("editNodeApiHost").value = node.apiHost;
+      el("editNodeApiPort").value = node.apiPort;
+      el("editNodeInboundTag").value = node.inboundTag;
+      el("editNodeRealityServerName").value = node.realityServerName;
+      el("editNodeRealityPublicKey").value = node.realityPublicKey;
+      el("editNodeRealityShortId").value = node.realityShortId;
+      el("editNodeRealityFingerprint").value = node.realityFingerprint;
+      el("editNodeRealityAlpn").value = (node.realityAlpn || []).join(",");
+      el("editNodeStatus").value = node.status;
+      el("editNodeWeight").value = node.weight;
+      el("editNodeMaxClients").value = node.maxClients;
+      el("editNodeSection").classList.remove("hidden");
+      setMessage("editNodeMessage", "");
+      el("editNodeSection").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    function cancelEditNode() {
+      state.editingNodeId = null;
+      el("editNodeSection").classList.add("hidden");
+      setMessage("editNodeMessage", "");
+    }
+    async function saveEditedNode() {
+      if (!state.editingNodeId) return;
+      const payload = nodePayload("editNode");
+      payload.status = el("editNodeStatus").value;
+      await request("/admin/nodes/" + state.editingNodeId, {
+        method: "PATCH",
+        headers: headers(),
+        body: JSON.stringify(payload)
+      });
+      setMessage("editNodeMessage", "Node updated", true);
+      await loadNodes();
+    }
+    async function createNode() {
+      const payload = nodePayload("node");
       await request("/admin/nodes", { method: "POST", headers: headers(), body: JSON.stringify(payload) });
       setMessage("createMessage", "Node created", true);
       await loadNodes();
@@ -787,6 +905,8 @@ private val adminPanelHtml = """
       updateSession();
     };
     el("createNodeBtn").onclick = () => createNode().catch((error) => setMessage("createMessage", error.message, false));
+    el("saveEditedNodeBtn").onclick = () => saveEditedNode().catch((error) => setMessage("editNodeMessage", error.message, false));
+    el("cancelEditNodeBtn").onclick = cancelEditNode;
     el("grantQuotaBtn").onclick = () => grantQuota().catch((error) => setMessage("quotaMessage", error.message, false));
     updateSession();
     if (state.token) loadNodes().catch((error) => setMessage("nodesMessage", error.message, false));

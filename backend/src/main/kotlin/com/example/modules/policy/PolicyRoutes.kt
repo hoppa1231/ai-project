@@ -248,9 +248,10 @@ private fun normalizeValues(matchType: String, rawValues: List<String>): List<St
         .filter { it.isNotBlank() }
         .map { value ->
             when (matchType) {
-                "DOMAIN_SUFFIX", "DOMAIN_KEYWORD" -> normalizeDomainValue(value)
+                "DOMAIN", "DOMAIN_SUFFIX", "DOMAIN_KEYWORD" -> normalizeDomainValue(value)
                 "IP_CIDR" -> normalizeCidrValue(value)
                 "APP_PACKAGE" -> normalizePackageValue(value)
+                "GEOIP" -> normalizeGeoipValue(value)
                 else -> value
             }
         }
@@ -307,6 +308,14 @@ private fun normalizePackageValue(value: String): String {
     return normalized
 }
 
+private fun normalizeGeoipValue(value: String): String {
+    val normalized = value.lowercase().removePrefix("geoip-")
+    if (!GEOIP_VALUE_REGEX.matches(normalized)) {
+        throw ApiException(HttpStatusCode.BadRequest, "INVALID_GEOIP_RULE", "Invalid geoip rule value")
+    }
+    return normalized
+}
+
 private fun PolicyRouteRuleInput.toHashInput(): PolicyRuleHashInput {
     return PolicyRuleHashInput(
         source = if (defaultRuleKey == null) "USER" else "DEFAULT",
@@ -331,11 +340,12 @@ private fun RoutingRuleEntity.toHashInput(): PolicyRuleHashInput {
     )
 }
 
-private val MATCH_TYPES = setOf("DOMAIN_SUFFIX", "DOMAIN_KEYWORD", "IP_CIDR", "APP_PACKAGE")
+private val MATCH_TYPES = setOf("DOMAIN", "DOMAIN_SUFFIX", "DOMAIN_KEYWORD", "IP_CIDR", "APP_PACKAGE", "GEOIP")
 private val ACTIONS = setOf("VPN", "DIRECT", "BLOCK")
 private val DOMAIN_VALUE_REGEX = Regex("^[a-z0-9*_-]+(\\.[a-z0-9*_-]+)*$")
 private val IPV4_VALUE_REGEX = Regex("^\\d{1,3}(\\.\\d{1,3}){3}$")
 private val IPV6_VALUE_REGEX = Regex("^[0-9a-fA-F:.]+$")
 private val PACKAGE_VALUE_REGEX = Regex("^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$")
+private val GEOIP_VALUE_REGEX = Regex("^[a-z]{2}(-[a-z0-9]+)*$")
 private const val MAX_ROUTE_RULES = 60
 private const val MAX_ROUTE_RULE_VALUES = 80

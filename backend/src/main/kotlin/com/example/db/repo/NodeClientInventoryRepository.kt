@@ -105,6 +105,18 @@ class NodeClientInventoryRepository(private val dsl: DSLContext) {
         ).map(::map)
     }
 
+    fun listAll(): List<NodeClientInventoryEntity> {
+        return dsl.fetch(
+            """
+            SELECT id, node_id, inbound_id, inbound_remark, inbound_tag, xray_email,
+                   vless_uuid, flow, enabled, total_bytes, up_bytes, down_bytes,
+                   expiry_time, limit_ip, sub_id, telegram_id, last_synced_at
+            FROM node_client_inventory
+            ORDER BY last_synced_at DESC, telegram_id NULLS LAST, xray_email ASC
+            """.trimIndent()
+        ).map(::map)
+    }
+
     private fun map(rec: org.jooq.Record): NodeClientInventoryEntity {
         return NodeClientInventoryEntity(
             id = rec.get("id", UUID::class.java)!!,

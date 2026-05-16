@@ -382,7 +382,7 @@ fun CurrentServerCard(server: ServerNode, nightTheme: Boolean) {
 }
 
 @Composable
-fun SearchBox(nightTheme: Boolean) {
+fun SearchBox(nightTheme: Boolean, telegramMode: Boolean = false) {
     val border = if (nightTheme) GoldDeep else Burgundy
     val text = if (nightTheme) Bone else InkSoft
     Row(
@@ -397,7 +397,13 @@ fun SearchBox(nightTheme: Boolean) {
     ) {
         Icon(Icons.Rounded.Search, contentDescription = null, tint = border, modifier = Modifier.size(14.dp))
         Spacer(Modifier.width(8.dp))
-        Text("Поискъ узла связи...", color = text.copy(alpha = 0.62f), fontFamily = Playfair, fontStyle = FontStyle.Italic, fontSize = 11.sp)
+        Text(
+            if (telegramMode) "Поискъ конфига..." else "Поискъ узла связи...",
+            color = text.copy(alpha = 0.62f),
+            fontFamily = Playfair,
+            fontStyle = FontStyle.Italic,
+            fontSize = 11.sp
+        )
     }
 }
 

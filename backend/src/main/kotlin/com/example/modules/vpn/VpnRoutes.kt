@@ -9,6 +9,7 @@ import com.example.db.NodeClientInventoryEntity
 import com.example.db.NodeEntity
 import com.example.security.LimitRule
 import com.example.security.deviceIdOrNull
+import com.example.security.requireRole
 import com.example.security.requireUserId
 import com.example.xray.XrayUser
 import io.ktor.http.HttpStatusCode
@@ -97,6 +98,7 @@ data class VpnConfigsResponse(
 
 @Serializable
 data class TelegramVpnConfigResponse(
+    val configName: String,
     val nodeId: String,
     val nodeName: String,
     val region: String,
@@ -118,7 +120,8 @@ data class TelegramVpnConfigResponse(
 
 @Serializable
 data class TelegramVpnConfigsResponse(
-    val telegramId: Long,
+    val telegramId: Long?,
+    val scope: String,
     val configs: List<TelegramVpnConfigResponse>
 )
 
@@ -153,10 +156,17 @@ fun Application.configureVpnRoutes(context: AppContext) {
                     val principal = call.principal<JWTPrincipal>()
                         ?: throw ApiException(HttpStatusCode.Unauthorized, "UNAUTHORIZED", "Missing principal")
                     val userId = principal.requireUserId()
+                    val role = principal.requireRole()
                     val telegramId = context.users.getTelegramId(userId)
-                        ?: throw ApiException(HttpStatusCode.Forbidden, "TELEGRAM_NOT_LINKED", "Telegram account is not linked")
+                    val isAdmin = role == "ADMIN" || (telegramId != null && telegramId in context.config.telegramAdminIds)
 
-                    val clients = context.nodeClients.listByTelegramId(telegramId)
+                    val clients = if (isAdmin) {
+                        context.nodeClients.listAll()
+                    } else {
+                        val linkedTelegramId = telegramId
+                            ?: throw ApiException(HttpStatusCode.Forbidden, "TELEGRAM_NOT_LINKED", "Telegram account is not linked")
+                        context.nodeClients.listByTelegramId(linkedTelegramId)
+                    }
                     val nodes = clients.map { it.nodeId }.distinct().associateWith { nodeId ->
                         context.nodes.findById(nodeId)
                     }
@@ -164,6 +174,7 @@ fun Application.configureVpnRoutes(context: AppContext) {
                     call.respond(
                         TelegramVpnConfigsResponse(
                             telegramId = telegramId,
+                            scope = if (isAdmin) "ALL" else "TELEGRAM",
                             configs = clients.mapNotNull { client ->
                                 val node = nodes[client.nodeId] ?: return@mapNotNull null
                                 toTelegramConfigResponse(client, node)
@@ -577,6 +588,7 @@ private fun toTelegramConfigResponse(
     }
 
     return TelegramVpnConfigResponse(
+        configName = client.displayName(),
         nodeId = node.id.toString(),
         nodeName = node.name,
         region = node.region,
@@ -595,6 +607,12 @@ private fun toTelegramConfigResponse(
         vlessUri = vlessUri,
         lastSyncedAt = client.lastSyncedAt.toString()
     )
+}
+
+private fun NodeClientInventoryEntity.displayName(): String {
+    return listOf(subId, email.substringBefore('@'), inboundRemark)
+        .firstOrNull { !it.isNullOrBlank() }
+        ?: "VPN config"
 }
 
 private fun NodeEntity.toNodeRef(): NodeRefResponse {

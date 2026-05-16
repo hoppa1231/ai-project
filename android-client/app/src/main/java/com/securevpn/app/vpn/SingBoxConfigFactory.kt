@@ -1,9 +1,11 @@
 package com.securevpn.app.vpn
 
+import com.securevpn.app.BuildConfig
 import com.securevpn.app.data.RouteRule
 import com.securevpn.app.data.RoutingPolicy
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URI
 
 object SingBoxConfigFactory {
     fun fromVlessUri(vlessUri: String, policy: RoutingPolicy = RoutingPolicy.default()): String {
@@ -54,6 +56,16 @@ object SingBoxConfigFactory {
                     .put("outbound", "direct")
             )
 
+        apiBaseHost()?.let { host ->
+            routeRules.put(
+                JSONObject()
+                    .put("domain_suffix", JSONArray().put(host))
+                    .put("outbound", "direct")
+            )
+        }
+
+        val routeRuleSets = geoipRouteRuleSets(policy)
+
         policy.routeRules
             .filter { it.enabled && it.values.isNotEmpty() }
             .sortedBy { it.priority }
@@ -65,6 +77,9 @@ object SingBoxConfigFactory {
             .put("default_domain_resolver", BOOTSTRAP_DNS_TAG)
             .put("rules", routeRules)
             .put("final", if (policy.defaultRoute == "DIRECT") "direct" else "proxy")
+        if (routeRuleSets.length() > 0) {
+            route.put("rule_set", routeRuleSets)
+        }
 
         if (profile.host.isIpv4Address()) {
             routeRules.put(
@@ -74,7 +89,7 @@ object SingBoxConfigFactory {
             )
         }
 
-        return JSONObject()
+        val config = JSONObject()
             .put("log", JSONObject().put("level", "info"))
             .put(
                 "dns",
@@ -126,7 +141,24 @@ object SingBoxConfigFactory {
                     .put(JSONObject().put("type", "block").put("tag", "block"))
             )
             .put("route", route)
-            .toString()
+        if (routeRuleSets.length() > 0) {
+            config.put(
+                "experimental",
+                JSONObject().put(
+                    "cache_file",
+                    JSONObject().put("enabled", true)
+                )
+            )
+        }
+
+        return config.toString()
+    }
+
+    private fun apiBaseHost(): String? {
+        return runCatching { URI(BuildConfig.API_BASE_URL).host }
+            .getOrNull()
+            ?.lowercase()
+            ?.takeIf { it.isNotBlank() }
     }
 
     private fun routeRuleJson(rule: RouteRule): JSONObject? {
@@ -135,17 +167,51 @@ object SingBoxConfigFactory {
             "BLOCK" -> "block"
             else -> "proxy"
         }
-        val matchValues = JSONArray().also { array -> rule.values.forEach(array::put) }
+        val values = if (rule.matchType == "GEOIP") {
+            rule.values.mapNotNull(::normalizedGeoipCode).map { "geoip-$it" }
+        } else {
+            rule.values
+        }
+        if (values.isEmpty()) return null
+        val matchValues = JSONArray().also { array -> values.forEach(array::put) }
         val matcher = when (rule.matchType) {
+            "DOMAIN" -> "domain"
             "DOMAIN_SUFFIX" -> "domain_suffix"
             "DOMAIN_KEYWORD" -> "domain_keyword"
             "IP_CIDR" -> "ip_cidr"
             "APP_PACKAGE" -> "package_name"
+            "GEOIP" -> "rule_set"
             else -> return null
         }
         return JSONObject()
             .put(matcher, matchValues)
             .put("outbound", outbound)
+    }
+
+    private fun geoipRouteRuleSets(policy: RoutingPolicy): JSONArray {
+        val codes = policy.routeRules
+            .filter { it.enabled && it.matchType == "GEOIP" }
+            .flatMap { it.values }
+            .mapNotNull(::normalizedGeoipCode)
+            .distinct()
+        return JSONArray().also { array ->
+            codes.forEach { code ->
+                val tag = "geoip-$code"
+                array.put(
+                    JSONObject()
+                        .put("type", "remote")
+                        .put("tag", tag)
+                        .put("format", "binary")
+                        .put("url", GEOIP_RULE_SET_URL_OVERRIDES[code] ?: "$GEOIP_RULE_SET_BASE_URL/$tag.srs")
+                        .put("download_detour", "proxy")
+                )
+            }
+        }
+    }
+
+    private fun normalizedGeoipCode(value: String): String? {
+        val normalized = value.lowercase().removePrefix("geoip-")
+        return normalized.takeIf { GEOIP_RULE_SET_REGEX.matches(it) }
     }
 
     private fun routeExcludeAddresses(profile: VlessProfile): JSONArray {
@@ -166,6 +232,11 @@ object SingBoxConfigFactory {
 
     private const val BOOTSTRAP_DNS_TAG = "bootstrap"
     private const val REMOTE_DNS_TAG = "remote"
+    private const val GEOIP_RULE_SET_BASE_URL = "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set"
+    private val GEOIP_RULE_SET_REGEX = Regex("^[a-z]{2}(-[a-z0-9]+)*$")
+    private val GEOIP_RULE_SET_URL_OVERRIDES = mapOf(
+        "ru-blocked" to "https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/sing-box/rule-set-geoip/geoip-ru-blocked.srs"
+    )
 
     private val LAN_BYPASS_CIDRS = listOf(
         "10.0.0.0/8",

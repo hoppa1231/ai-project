@@ -234,6 +234,18 @@
       }
     },
     "/admin/nodes": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "List admin nodes",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/AdminNodeResponse" } } } }
+          },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      },
       "post": {
         "tags": ["Admin"],
         "summary": "Create node",
@@ -517,7 +529,7 @@
       },
       "CreateNodeRequest": {
         "type": "object",
-        "required": ["name", "region", "countryCode", "hostname", "publicAddress", "publicPort", "inboundTag", "realityPublicKey", "realityShortId", "realitySni"],
+        "required": ["name", "region", "countryCode", "hostname", "publicAddress", "publicPort", "apiHost", "apiPort", "inboundTag", "realityServerName", "realityPublicKey"],
         "properties": {
           "name": { "type": "string" },
           "region": { "type": "string" },
@@ -525,21 +537,60 @@
           "hostname": { "type": "string" },
           "publicAddress": { "type": "string" },
           "publicPort": { "type": "integer" },
+          "apiHost": { "type": "string" },
+          "apiPort": { "type": "integer" },
           "inboundTag": { "type": "string" },
+          "realityServerName": { "type": "string" },
+          "realityPublicKey": { "type": "string" },
+          "realityShortId": { "type": "string", "default": "" },
+          "realityFingerprint": { "type": "string", "default": "chrome" },
+          "realityAlpn": { "type": "array", "items": { "type": "string" }, "default": ["h2", "http/1.1"] },
+          "weight": { "type": "integer", "default": 100 },
+          "maxClients": { "type": "integer", "default": 10000 }
+        }
+      },
+      "AdminNodeResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "region": { "type": "string" },
+          "countryCode": { "type": "string" },
+          "hostname": { "type": "string" },
+          "publicAddress": { "type": "string" },
+          "publicPort": { "type": "integer" },
+          "apiHost": { "type": "string" },
+          "apiPort": { "type": "integer" },
+          "inboundTag": { "type": "string" },
+          "realityServerName": { "type": "string" },
           "realityPublicKey": { "type": "string" },
           "realityShortId": { "type": "string" },
-          "realitySni": { "type": "string" },
-          "realityFingerprint": { "type": "string", "default": "chrome" },
-          "flow": { "type": "string", "nullable": true },
-          "alpn": { "type": "string", "nullable": true },
-          "grpcEndpoint": { "type": "string", "nullable": true },
-          "weight": { "type": "integer", "default": 100 },
-          "maxClients": { "type": "integer", "default": 1000 }
+          "realityFingerprint": { "type": "string" },
+          "realityAlpn": { "type": "array", "items": { "type": "string" } },
+          "status": { "type": "string" },
+          "health": { "type": "string" },
+          "weight": { "type": "integer" },
+          "load": { "type": "integer" },
+          "maxClients": { "type": "integer" }
         }
       },
       "PatchNodeRequest": {
         "type": "object",
         "properties": {
+          "name": { "type": "string", "nullable": true },
+          "region": { "type": "string", "nullable": true },
+          "countryCode": { "type": "string", "nullable": true },
+          "hostname": { "type": "string", "nullable": true },
+          "publicAddress": { "type": "string", "nullable": true },
+          "publicPort": { "type": "integer", "nullable": true },
+          "apiHost": { "type": "string", "nullable": true },
+          "apiPort": { "type": "integer", "nullable": true },
+          "inboundTag": { "type": "string", "nullable": true },
+          "realityServerName": { "type": "string", "nullable": true },
+          "realityPublicKey": { "type": "string", "nullable": true },
+          "realityShortId": { "type": "string", "nullable": true },
+          "realityFingerprint": { "type": "string", "nullable": true },
+          "realityAlpn": { "type": "array", "items": { "type": "string" }, "nullable": true },
           "status": { "type": "string", "nullable": true },
           "weight": { "type": "integer", "nullable": true },
           "maxClients": { "type": "integer", "nullable": true }

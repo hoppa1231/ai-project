@@ -30,6 +30,7 @@ app:
     botUsername: ${?TELEGRAM_BOT_USERNAME}
     appLoginEnabled: ${?TELEGRAM_APP_LOGIN_ENABLED}
     webhookSecret: ${?TELEGRAM_WEBHOOK_SECRET}
+    adminIds: ${?TELEGRAM_ADMIN_IDS}
   vpn:
     issueTtlHours: 24
   quota:

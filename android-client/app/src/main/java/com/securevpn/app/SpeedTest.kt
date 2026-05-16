@@ -29,9 +29,6 @@ suspend fun measureInternetSpeed(
     onPing: suspend (Int) -> Unit,
     onSample: suspend (currentMbps: Float, averageMbps: Float, peakMbps: Float, downloadedBytes: Long) -> Unit
 ): SpeedTestResult {
-    val pingMs = measureLatencyMs()
-    withContext(Dispatchers.Main) { onPing(pingMs) }
-
     val testUrls = listOf(
         "https://speedtest.selectel.ru/100MB",
         "https://ru.edisglobal.com/100MB.test",
@@ -43,7 +40,10 @@ suspend fun measureInternetSpeed(
     var lastError: Throwable? = null
     for (url in testUrls) {
         try {
-            return downloadSpeed(url, onSample)
+            val result = downloadSpeed(url, onSample)
+            val pingMs = measureLatencyMs(preferredUrl = url)
+            withContext(Dispatchers.Main) { onPing(pingMs) }
+            return result
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
@@ -69,18 +69,22 @@ fun formatSpeed(value: Float): String =
 fun formatDataMb(value: Float): String =
     if (value >= 10f) value.roundToInt().toString() else "%.1f".format(java.util.Locale.US, value)
 
-private suspend fun measureLatencyMs(): Int = withContext(Dispatchers.IO) {
-    val attempts = listOf(
-        "https://speedtest.selectel.ru/100MB",
-        "https://ru.edisglobal.com/100MB.test",
-        "http://speedtest.rastrnet.ru/100MB.zip",
-        "https://speed.cloudflare.com/__down?bytes=1",
-        "https://www.google.com/generate_204",
-        "https://www.cloudflare.com/cdn-cgi/trace"
-    )
+private suspend fun measureLatencyMs(preferredUrl: String? = null): Int = withContext(Dispatchers.IO) {
+    val attempts = buildList {
+        preferredUrl?.let(::add)
+        addAll(
+            listOf(
+                "https://speedtest.selectel.ru/100MB",
+                "https://ru.edisglobal.com/100MB.test",
+                "http://speedtest.rastrnet.ru/100MB.zip",
+                "https://speed.cloudflare.com/__down?bytes=1",
+                "https://www.google.com/generate_204",
+                "https://www.cloudflare.com/cdn-cgi/trace"
+            )
+        )
+    }.distinct()
     attempts.firstNotNullOfOrNull { url ->
         runCatching {
-            val start = System.nanoTime()
             val connection = (URL(cacheBustedUrl(url)).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 4_000
@@ -92,9 +96,10 @@ private suspend fun measureLatencyMs(): Int = withContext(Dispatchers.IO) {
             try {
                 connection.inputStream.use { stream ->
                     val buffer = ByteArray(16)
+                    val start = System.nanoTime()
                     stream.read(buffer)
+                    ((System.nanoTime() - start) / 1_000_000L).toInt().coerceAtLeast(1)
                 }
-                ((System.nanoTime() - start) / 1_000_000L).toInt().coerceAtLeast(1)
             } finally {
                 connection.disconnect()
             }

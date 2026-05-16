@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -364,16 +365,20 @@ fun SettingsScreen(
 fun RoutingScreen(
     policy: RoutingPolicy,
     notice: String?,
+    hasUnsyncedChanges: Boolean,
     nightTheme: Boolean,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
+    onSave: () -> Unit,
     onToggleDefaultRoute: () -> Unit,
     onToggleRule: (String) -> Unit,
     onCycleRuleAction: (String) -> Unit,
-    onAddDirectDomain: (String) -> Unit,
+    onAddRule: (matchType: String, action: String, values: String) -> Unit,
     onDeleteRule: (String) -> Unit
 ) {
-    var domainInput by remember { mutableStateOf("") }
+    var valuesInput by remember { mutableStateOf("") }
+    var newRuleType by remember { mutableStateOf("DOMAIN_SUFFIX") }
+    var newRuleAction by remember { mutableStateOf("DIRECT") }
     val primary = if (nightTheme) Gold else Burgundy
     val text = if (nightTheme) BoneLight else Ink
     val soft = if (nightTheme) Bone else InkSoft
@@ -407,39 +412,66 @@ fun RoutingScreen(
                 item {
                     SettingsSection("ОБЩИЙ ХОД", primary = primary, border = line, panel = panel) {
                         SettingsRow("0.1", "По умолчанию", if (defaultIsVpn) "через VPN" else "напрямую", checked = defaultIsVpn, onToggle = onToggleDefaultRoute, text = text, soft = soft, night = nightTheme)
-                        SettingsRow("0.2", "Синхронизация", notice ?: "версия ${policy.version}", onToggle = onRefresh, text = text, soft = soft)
-                        SettingsRow("0.3", "Назадъ", "вернуться к настройкам", onToggle = onBack, text = text, soft = soft)
+                        SettingsRow(
+                            "0.2",
+                            "Сохранить",
+                            if (hasUnsyncedChanges) notice ?: "отправить локальные правки" else notice ?: "изменений нет · версия ${policy.version}",
+                            onToggle = onSave,
+                            text = text,
+                            soft = soft
+                        )
+                        SettingsRow("0.3", "Обновить", "загрузить правила с сервера", onToggle = onRefresh, text = text, soft = soft)
+                        SettingsRow("0.4", "Назадъ", "вернуться к настройкам", onToggle = onBack, text = text, soft = soft)
                     }
                 }
 
                 item {
                     SettingsSection("ДОБАВИТЬ ПРАВИЛО", primary = primary, border = line, panel = panel) {
+                        SettingsRow(
+                            "A.1",
+                            "Тип правила",
+                            routeMatchLabel(newRuleType),
+                            onToggle = { newRuleType = nextRouteRuleType(newRuleType) },
+                            text = text,
+                            soft = soft
+                        )
+                        SettingsRow(
+                            "A.2",
+                            "Действие",
+                            routeActionLabel(newRuleAction),
+                            onToggle = { newRuleAction = nextRouteRuleAction(newRuleAction) },
+                            text = text,
+                            soft = soft
+                        )
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 10.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            OutlinedTextField(
-                                value = domainInput,
-                                onValueChange = { domainInput = it },
-                                singleLine = true,
-                                label = { Text("домен", fontSize = 10.sp) },
+                            RouteValuesInput(
+                                value = valuesInput,
+                                onValueChange = { valuesInput = it },
+                                label = routeInputLabel(newRuleType),
+                                primary = primary,
+                                text = text,
+                                soft = soft,
+                                nightTheme = nightTheme,
                                 modifier = Modifier.weight(1f)
                             )
                             Spacer(Modifier.width(8.dp))
                             Box(
                                 modifier = Modifier
-                                    .height(48.dp)
+                                    .height(64.dp)
                                     .width(86.dp)
                                     .border(1.dp, primary)
                                     .clickable {
-                                        onAddDirectDomain(domainInput)
-                                        domainInput = ""
+                                        onAddRule(newRuleType, newRuleAction, valuesInput)
+                                        valuesInput = ""
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("DIRECT", color = primary, fontFamily = Russo, fontSize = 10.sp)
+                                Text("ДОБАВИТЬ", color = primary, fontFamily = Russo, fontSize = 9.sp)
                             }
                         }
                     }
@@ -471,6 +503,49 @@ fun RoutingScreen(
 }
 
 @Composable
+private fun RouteValuesInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    primary: Color,
+    text: Color,
+    soft: Color,
+    nightTheme: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .height(64.dp)
+            .border(1.dp, primary)
+            .background(if (nightTheme) Color(0x33000000) else Color.White.copy(alpha = 0.24f))
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+    ) {
+        if (value.isBlank()) {
+            Text(
+                label,
+                color = soft.copy(alpha = 0.72f),
+                fontFamily = Playfair,
+                fontStyle = FontStyle.Italic,
+                fontSize = 10.sp,
+                lineHeight = 11.sp
+            )
+        }
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            textStyle = TextStyle(
+                color = text,
+                fontFamily = PtSans,
+                fontSize = 12.sp,
+                lineHeight = 14.sp
+            ),
+            maxLines = 4,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
+@Composable
 private fun RouteRuleRow(
     rule: RouteRule,
     index: Int,
@@ -484,7 +559,7 @@ private fun RouteRuleRow(
 ) {
     val subtitle = listOf(
         routeMatchLabel(rule.matchType),
-        rule.values.take(2).joinToString(", "),
+        routeValuesPreview(rule),
         routeActionLabel(rule.action)
     ).filter { it.isNotBlank() }.joinToString(" · ")
     Column(
@@ -550,10 +625,41 @@ private fun routeActionLabel(action: String): String = when (action) {
 }
 
 private fun routeMatchLabel(matchType: String): String = when (matchType) {
+    "DOMAIN" -> "точный домен"
+    "DOMAIN_SUFFIX" -> "domain-suffix"
     "DOMAIN_KEYWORD" -> "слово домена"
+    "GEOIP" -> "geoip"
     "IP_CIDR" -> "IP-сеть"
     "APP_PACKAGE" -> "приложение"
-    else -> "домен"
+    else -> "domain-suffix"
+}
+
+private fun routeInputLabel(matchType: String): String = when (matchType) {
+    "DOMAIN" -> "домены"
+    "DOMAIN_KEYWORD" -> "ключевые слова"
+    "GEOIP" -> "geoip-ru, geoip-ru-blocked"
+    "IP_CIDR" -> "IP CIDR"
+    "APP_PACKAGE" -> "пакеты приложений"
+    else -> "домены"
+}
+
+private fun routeValuesPreview(rule: RouteRule): String {
+    val values = rule.values.map { value ->
+        if (rule.matchType == "GEOIP" && !value.startsWith("geoip-")) "geoip-$value" else value
+    }
+    val preview = values.take(2).joinToString(", ")
+    val hidden = values.size - 2
+    return if (hidden > 0) "$preview +$hidden" else preview
+}
+
+private fun nextRouteRuleType(current: String): String {
+    val types = listOf("DOMAIN_SUFFIX", "DOMAIN_KEYWORD", "DOMAIN", "GEOIP", "IP_CIDR", "APP_PACKAGE")
+    return types[(types.indexOf(current).coerceAtLeast(0) + 1) % types.size]
+}
+
+private fun nextRouteRuleAction(current: String): String {
+    val actions = listOf("DIRECT", "VPN", "BLOCK")
+    return actions[(actions.indexOf(current).coerceAtLeast(0) + 1) % actions.size]
 }
 
 @Composable

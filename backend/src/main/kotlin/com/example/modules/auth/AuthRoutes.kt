@@ -622,7 +622,7 @@ private fun issueTelegramSession(
     publicKey: String?,
     call: io.ktor.server.application.ApplicationCall
 ): AuthResponse {
-    val user = context.users.createTelegram(
+    val createdUser = context.users.createTelegram(
         telegramId = tg.id,
         username = tg.username,
         firstName = tg.firstName,
@@ -630,6 +630,14 @@ private fun issueTelegramSession(
         photoUrl = tg.photoUrl,
         passwordHash = context.passwordHasher.hash(UUID.randomUUID().toString())
     )
+    if (tg.id in context.config.telegramAdminIds && createdUser.role != "ADMIN") {
+        context.users.setRole(createdUser.id, "ADMIN")
+    }
+    val user = if (tg.id in context.config.telegramAdminIds && createdUser.role != "ADMIN") {
+        context.users.findById(createdUser.id) ?: createdUser.copy(role = "ADMIN")
+    } else {
+        createdUser
+    }
 
     if (user.status != "ACTIVE") {
         throw ApiException(HttpStatusCode.Forbidden, "USER_DISABLED", "User is disabled")
