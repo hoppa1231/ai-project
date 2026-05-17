@@ -89,6 +89,15 @@ jobs:
             exit 1
           fi
           $compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.prod.yml up -d --build --remove-orphans
-          curl -fsS --max-time 10 http://127.0.0.1:8080/health
+          for attempt in $(seq 1 30); do
+            if curl -fsS --max-time 5 http://127.0.0.1:8080/health; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              echo "Backend health check did not pass in time" >&2
+              exit 1
+            fi
+            sleep 2
+          done
           docker image prune -f
           EOF
