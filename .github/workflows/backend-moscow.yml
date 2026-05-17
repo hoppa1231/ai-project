@@ -67,15 +67,23 @@ jobs:
             --exclude='.env' \
             -C backend \
             -czf - . \
-          | ssh -i ~/.ssh/moscow -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+          | ssh -T -i ~/.ssh/moscow -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
               "mkdir -p '$DEPLOY_PATH' && tar -xzf - -C '$DEPLOY_PATH'"
 
       - name: Restart backend
         run: |
-          ssh -i ~/.ssh/moscow -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" <<EOF
+          ssh -T -i ~/.ssh/moscow -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" <<EOF
           set -euo pipefail
           cd "$DEPLOY_PATH"
           test -f .env
-          docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+          if docker compose version >/dev/null 2>&1; then
+            compose="docker compose"
+          elif command -v docker-compose >/dev/null 2>&1; then
+            compose="docker-compose"
+          else
+            echo "Docker Compose is not installed. Install docker-compose-plugin or docker-compose." >&2
+            exit 1
+          fi
+          \$compose -f docker-compose.prod.yml up -d --build --remove-orphans
           docker image prune -f
           EOF
