@@ -318,44 +318,53 @@ fun SettingsScreen(
             }
 
             Box(Modifier.height(3.dp).fillMaxWidth().background(line))
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 14.dp)
                     .padding(top = 10.dp, bottom = 76.dp)
             ) {
-                UserPermitCard(
-                    primary = primary,
-                    text = text,
-                    border = line,
-                    panel = panel,
-                    telegramAccount = telegramAccount,
-                    telegramStatus = telegramStatus,
-                    onTelegramLogin = onTelegramLogin
-                )
-                SettingsSection("СВЯЗЬ", primary = primary, border = line, panel = panel) {
-                    SettingsRow("1.1", "Шифръ канала", "AES-256", text = text, soft = soft)
-                    SettingsRow("1.2", "Протоколъ", "VLESS", text = text, soft = soft)
-                    SettingsRow("1.3", "DNS-проверка", if (dnsCheck) "включено" else "выключено", checked = dnsCheck, onToggle = onDns, text = text, soft = soft, night = darkRoom)
+                item {
+                    UserPermitCard(
+                        primary = primary,
+                        text = text,
+                        border = line,
+                        panel = panel,
+                        telegramAccount = telegramAccount,
+                        telegramStatus = telegramStatus,
+                        onTelegramLogin = onTelegramLogin
+                    )
                 }
-                SettingsSection("ДИСЦИПЛИНА", primary = primary, border = line, panel = panel) {
-                    SettingsRow("2.1", "Авто-подключение", if (autoConnect) "включено · при запуске устройства" else "выключено · при запуске устройства", checked = autoConnect, onToggle = onAuto, text = text, soft = soft, night = darkRoom)
-                    SettingsRow("2.2", "Стопъ-кранъ", if (killSwitch) "включено · прерывать связь при обрывѣ" else "выключено · прерывать связь при обрывѣ", checked = killSwitch, onToggle = onKill, text = text, soft = soft, night = darkRoom)
-                    SettingsRow("2.3", "Маршрутизация", "$routeRulesCount правилъ активно", onToggle = onRouting, text = text, soft = soft)
+                item {
+                    SettingsSection("СВЯЗЬ", primary = primary, border = line, panel = panel) {
+                        SettingsRow("1.1", "Шифръ канала", "AES-256", text = text, soft = soft)
+                        SettingsRow("1.2", "Протоколъ", "VLESS", text = text, soft = soft)
+                        SettingsRow("1.3", "DNS-проверка", if (dnsCheck) "включено" else "выключено", checked = dnsCheck, onToggle = onDns, text = text, soft = soft, night = darkRoom)
+                    }
                 }
-                SettingsSection("ВНѢШНІЙ ВИДЪ", primary = primary, border = line, panel = panel) {
-                    SettingsRow("3.1", "Ночная смена", if (darkRoom) "включено · ночной видъ" else "выключено · дневной видъ", checked = darkRoom, onToggle = onDark, text = text, soft = soft, night = darkRoom)
-                    SettingsRow("3.2", "Уведомления", if (notices) "включено · только важныя" else "выключено · только важныя", checked = notices, onToggle = onNotices, text = text, soft = soft, night = darkRoom)
-                    SettingsRow("3.3", "Языкъ интерфейса", "Русский", text = text, soft = soft)
+                item {
+                    SettingsSection("ДИСЦИПЛИНА", primary = primary, border = line, panel = panel) {
+                        SettingsRow("2.1", "Авто-подключение", if (autoConnect) "включено · при запуске устройства" else "выключено · при запуске устройства", checked = autoConnect, onToggle = onAuto, text = text, soft = soft, night = darkRoom)
+                        SettingsRow("2.2", "Стопъ-кранъ", if (killSwitch) "включено · прерывать связь при обрывѣ" else "выключено · прерывать связь при обрывѣ", checked = killSwitch, onToggle = onKill, text = text, soft = soft, night = darkRoom)
+                        SettingsRow("2.3", "Маршрутизация", "$routeRulesCount правилъ активно", onToggle = onRouting, text = text, soft = soft)
+                    }
                 }
-                Spacer(Modifier.weight(1f))
-                Text(
-                    "◆ ★ ◆",
-                    color = primary,
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                item {
+                    SettingsSection("ВНѢШНІЙ ВИДЪ", primary = primary, border = line, panel = panel) {
+                        SettingsRow("3.1", "Ночная смена", if (darkRoom) "включено · ночной видъ" else "выключено · дневной видъ", checked = darkRoom, onToggle = onDark, text = text, soft = soft, night = darkRoom)
+                        SettingsRow("3.2", "Уведомления", if (notices) "включено · только важныя" else "выключено · только важныя", checked = notices, onToggle = onNotices, text = text, soft = soft, night = darkRoom)
+                        SettingsRow("3.3", "Языкъ интерфейса", "Русский", text = text, soft = soft)
+                    }
+                }
+                item {
+                    Text(
+                        "◆ ★ ◆",
+                        color = primary,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(top = 18.dp)
+                    )
+                }
             }
         }
     }
@@ -368,8 +377,7 @@ fun RoutingScreen(
     hasUnsyncedChanges: Boolean,
     nightTheme: Boolean,
     onBack: () -> Unit,
-    onRefresh: () -> Unit,
-    onSave: () -> Unit,
+    onSync: () -> Unit,
     onToggleDefaultRoute: () -> Unit,
     onToggleRule: (String) -> Unit,
     onCycleRuleAction: (String) -> Unit,
@@ -414,14 +422,13 @@ fun RoutingScreen(
                         SettingsRow("0.1", "По умолчанию", if (defaultIsVpn) "через VPN" else "напрямую", checked = defaultIsVpn, onToggle = onToggleDefaultRoute, text = text, soft = soft, night = nightTheme)
                         SettingsRow(
                             "0.2",
-                            "Сохранить",
-                            if (hasUnsyncedChanges) notice ?: "отправить локальные правки" else notice ?: "изменений нет · версия ${policy.version}",
-                            onToggle = onSave,
+                            "Синхронизация",
+                            if (hasUnsyncedChanges) notice ?: "есть локальные правки" else notice ?: "версия ${policy.version}",
+                            onToggle = onSync,
                             text = text,
                             soft = soft
                         )
-                        SettingsRow("0.3", "Обновить", "загрузить правила с сервера", onToggle = onRefresh, text = text, soft = soft)
-                        SettingsRow("0.4", "Назадъ", "вернуться к настройкам", onToggle = onBack, text = text, soft = soft)
+                        SettingsRow("0.3", "Назадъ", "вернуться к настройкам", onToggle = onBack, text = text, soft = soft)
                     }
                 }
 
@@ -557,6 +564,7 @@ private fun RouteRuleRow(
     onCycleRuleAction: (String) -> Unit,
     onDeleteRule: (String) -> Unit
 ) {
+    var expanded by remember { mutableStateOf(false) }
     val subtitle = listOf(
         routeMatchLabel(rule.matchType),
         routeValuesPreview(rule),
@@ -594,6 +602,15 @@ private fun RouteRuleRow(
                 modifier = Modifier.weight(1f)
             )
             Text(
+                if (expanded) "СВЕРНУТЬ" else "СОСТАВ",
+                color = primary,
+                fontFamily = Russo,
+                fontSize = 10.sp,
+                modifier = Modifier
+                    .clickable { expanded = !expanded }
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            )
+            Text(
                 routeActionLabel(rule.action),
                 color = primary,
                 fontFamily = Russo,
@@ -614,8 +631,44 @@ private fun RouteRuleRow(
                 )
             }
         }
+        if (expanded) {
+            RouteRuleDetails(rule = rule, text = text, soft = soft)
+        }
     }
     Spacer(Modifier.height(8.dp))
+}
+
+@Composable
+private fun RouteRuleDetails(
+    rule: RouteRule,
+    text: Color,
+    soft: Color
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 10.dp)
+            .padding(bottom = 10.dp)
+    ) {
+        Text(
+            routeValuesForDisplay(rule).joinToString("\n"),
+            color = text,
+            fontFamily = PtSans,
+            fontSize = 11.sp,
+            lineHeight = 14.sp
+        )
+        if (rule.description.isNotBlank()) {
+            Text(
+                rule.description,
+                color = soft,
+                fontFamily = Playfair,
+                fontStyle = FontStyle.Italic,
+                fontSize = 10.sp,
+                lineHeight = 12.sp,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        }
+    }
 }
 
 private fun routeActionLabel(action: String): String = when (action) {
@@ -644,12 +697,16 @@ private fun routeInputLabel(matchType: String): String = when (matchType) {
 }
 
 private fun routeValuesPreview(rule: RouteRule): String {
-    val values = rule.values.map { value ->
-        if (rule.matchType == "GEOIP" && !value.startsWith("geoip-")) "geoip-$value" else value
-    }
+    val values = routeValuesForDisplay(rule)
     val preview = values.take(2).joinToString(", ")
     val hidden = values.size - 2
     return if (hidden > 0) "$preview +$hidden" else preview
+}
+
+private fun routeValuesForDisplay(rule: RouteRule): List<String> {
+    return rule.values.map { value ->
+        if (rule.matchType == "GEOIP" && !value.startsWith("geoip-")) "geoip-$value" else value
+    }
 }
 
 private fun nextRouteRuleType(current: String): String {

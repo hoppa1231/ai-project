@@ -29,12 +29,12 @@ Required GitHub secrets:
 
 Optional GitHub environment/repository variable:
 
-- `MOSCOW_DEPLOY_PATH` (defaults to `/opt/vpn-control-plane/backend`)
+- `MOSCOW_DEPLOY_PATH` (defaults to `/opt/vpn-control-plane`; a legacy trailing `/backend` is normalized away)
 
-The server must already have Docker Compose and a production `.env` file in `MOSCOW_DEPLOY_PATH`. Deployment uploads the `backend/` sources over SSH and runs:
+The server must already have Docker Compose and a production `.env` file in the deploy root. Deployment uploads the `backend/` sources over SSH and runs with a fixed Compose project name so the PostgreSQL volume stays `vpn-control-plane_pg_data`:
 
 ```bash
-docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+docker compose -p vpn-control-plane -f docker-compose.prod.yml up -d --build --remove-orphans
 ```
 
 ## Main env

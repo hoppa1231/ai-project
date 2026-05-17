@@ -46,7 +46,8 @@ jobs:
       SSH_HOST: ${{ secrets.MOSCOW_SSH_HOST }}
       SSH_USER: ${{ secrets.MOSCOW_SSH_USER }}
       SSH_PORT: ${{ secrets.MOSCOW_SSH_PORT || '22' }}
-      DEPLOY_PATH: ${{ vars.MOSCOW_DEPLOY_PATH || '/opt/vpn-control-plane/backend' }}
+      DEPLOY_PATH: ${{ vars.MOSCOW_DEPLOY_PATH || '/opt/vpn-control-plane' }}
+      COMPOSE_PROJECT_NAME: vpn-control-plane
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -61,6 +62,7 @@ jobs:
 
       - name: Upload backend sources
         run: |
+          DEPLOY_ROOT="${DEPLOY_PATH%/backend}"
           tar \
             --exclude='.gradle' \
             --exclude='build' \
@@ -68,13 +70,15 @@ jobs:
             -C backend \
             -czf - . \
           | ssh -T -i ~/.ssh/moscow -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-              "mkdir -p '$DEPLOY_PATH' && tar -xzf - -C '$DEPLOY_PATH'"
+              "mkdir -p '$DEPLOY_ROOT' && tar -xzf - -C '$DEPLOY_ROOT'"
 
       - name: Restart backend
         run: |
-          ssh -T -i ~/.ssh/moscow -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" <<EOF
+          DEPLOY_ROOT="${DEPLOY_PATH%/backend}"
+          ssh -T -i ~/.ssh/moscow -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "DEPLOY_ROOT='$DEPLOY_ROOT' COMPOSE_PROJECT_NAME='$COMPOSE_PROJECT_NAME' bash -s" <<'EOF'
           set -euo pipefail
-          cd "$DEPLOY_PATH"
+          cd "$DEPLOY_ROOT"
           test -f .env
           if docker compose version >/dev/null 2>&1; then
             compose="docker compose"
@@ -84,6 +88,7 @@ jobs:
             echo "Docker Compose is not installed. Install docker-compose-plugin or docker-compose." >&2
             exit 1
           fi
-          \$compose -f docker-compose.prod.yml up -d --build --remove-orphans
+          $compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.prod.yml up -d --build --remove-orphans
+          curl -fsS --max-time 10 http://127.0.0.1:8080/health
           docker image prune -f
           EOF

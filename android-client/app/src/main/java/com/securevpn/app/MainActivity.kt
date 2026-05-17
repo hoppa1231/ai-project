@@ -205,10 +205,7 @@ fun SovietVpnApp(
                     routingNotice = "маршруты синхронизированы"
                 }
                 .onFailure { error ->
-                    val cached = api.cachedRoutingPolicy()
-                    routingPolicy = cached
-                    routingDraft = cached
-                    routingNotice = error.message?.take(80) ?: "используется локальная копия"
+                    routingNotice = error.message?.take(80) ?: "синхронизация не удалась · локальные правила сохранены"
                 }
         }
     }
@@ -332,12 +329,20 @@ fun SovietVpnApp(
         }
     }
 
+    fun syncRoutingPolicy() {
+        if (hasRoutingDraftChanges()) {
+            saveRoutingPolicy(routingDraft)
+        } else {
+            refreshRoutingPolicy()
+        }
+    }
+
     fun updateRoutingDraft(nextPolicy: RoutingPolicy) {
         routingDraft = nextPolicy
         routingNotice = if (state == LinkState.On) {
-            "применено локально · нажмите сохранить"
+            "применено локально · синхронизация позже"
         } else {
-            "изменено локально · нажмите сохранить"
+            "изменено локально · синхронизация позже"
         }
         if (state == LinkState.On) {
             scope.launch {
@@ -538,14 +543,7 @@ fun SovietVpnApp(
                         hasUnsyncedChanges = hasRoutingDraftChanges(),
                         nightTheme = darkRoom,
                         onBack = { screen = AppScreen.Settings },
-                        onRefresh = ::refreshRoutingPolicy,
-                        onSave = {
-                            if (hasRoutingDraftChanges()) {
-                                saveRoutingPolicy(routingDraft)
-                            } else {
-                                routingNotice = "локальные правила уже сохранены"
-                            }
-                        },
+                        onSync = ::syncRoutingPolicy,
                         onToggleDefaultRoute = ::toggleDefaultRoute,
                         onToggleRule = ::toggleRouteRule,
                         onCycleRuleAction = ::cycleRouteRuleAction,
