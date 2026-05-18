@@ -1,9 +1,15 @@
 package com.securevpn.app
 
+import android.Manifest
 import android.app.Activity
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.VpnService
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
@@ -24,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,11 +46,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.securevpn.app.data.BackendApi
+import com.securevpn.app.data.QuotaStatus
 import com.securevpn.app.data.RouteRule
 import com.securevpn.app.data.RoutingPolicy
 import com.securevpn.app.data.TelegramAuthData
 import com.securevpn.app.ui.theme.SecureVpnTheme
+import com.securevpn.app.vpn.SingBoxVpnService
 import com.securevpn.app.vpn.SingBoxTunnel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -105,6 +115,8 @@ fun SovietVpnApp(
     val api = remember(context) { BackendApi(context) }
     var screen by rememberSaveable { mutableStateOf(AppScreen.Home) }
     var state by rememberSaveable { mutableStateOf(LinkState.Off) }
+    var serviceControlledState by rememberSaveable { mutableStateOf(false) }
+    var trafficText by rememberSaveable { mutableStateOf("") }
     var serverNodes by remember { mutableStateOf(ServerNodes) }
     var selectedServerId by rememberSaveable { mutableStateOf(ServerNodes.first().id) }
     var dnsCheck by rememberSaveable { mutableStateOf(true) }
@@ -118,9 +130,22 @@ fun SovietVpnApp(
     var routingPolicy by remember { mutableStateOf(api.cachedRoutingPolicy()) }
     var routingDraft by remember { mutableStateOf(routingPolicy) }
     var routingNotice by remember { mutableStateOf<String?>(null) }
+    var quotaStatus by remember { mutableStateOf<QuotaStatus?>(null) }
     var showingTelegramConfigs by remember { mutableStateOf(telegramAccount != null) }
     var userTouchedConnection by remember { mutableStateOf(false) }
+    var trafficBytes by rememberSaveable { mutableStateOf(0L) }
+    var runtimeQuotaTotalBytes by rememberSaveable { mutableStateOf(0L) }
+    var configFailureRetry by rememberSaveable { mutableStateOf(0) }
+    var autoConfigRetryCount by rememberSaveable { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        notices = granted
+        if (!granted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            apiNotice = "Разрешение на уведомления не выдано"
+        }
+    }
     val emptyTelegramServer = remember {
         ServerNode(
             id = "telegram-empty",
@@ -146,6 +171,54 @@ fun SovietVpnApp(
         }
     }
 
+    fun applyVpnRuntimeState(snapshot: SingBoxVpnService.RuntimeSnapshot) {
+        trafficText = snapshot.trafficText
+        trafficBytes = snapshot.trafficBytes
+        runtimeQuotaTotalBytes = snapshot.quotaTotalBytes
+        state = when (snapshot.state) {
+            SingBoxVpnService.STATE_ON -> LinkState.On
+            SingBoxVpnService.STATE_PAUSED -> LinkState.Paused
+            SingBoxVpnService.STATE_CONNECTING -> LinkState.Connecting
+            SingBoxVpnService.STATE_CONFIG_FAILED -> LinkState.Off
+            else -> LinkState.Off
+        }
+        serviceControlledState = snapshot.state != SingBoxVpnService.STATE_OFF &&
+            snapshot.state != SingBoxVpnService.STATE_CONFIG_FAILED
+    }
+
+    DisposableEffect(context) {
+        applyVpnRuntimeState(SingBoxVpnService.runtimeState(context))
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(receiverContext: Context, intent: Intent) {
+                if (intent.action != SingBoxVpnService.ACTION_STATE_CHANGED) return
+                val nextState = intent.getStringExtra(SingBoxVpnService.EXTRA_STATE) ?: SingBoxVpnService.STATE_OFF
+                applyVpnRuntimeState(
+                    SingBoxVpnService.RuntimeSnapshot(
+                        state = nextState,
+                        trafficText = intent.getStringExtra(SingBoxVpnService.EXTRA_TRAFFIC).orEmpty(),
+                        trafficBytes = intent.getLongExtra(SingBoxVpnService.EXTRA_TRAFFIC_BYTES, 0L),
+                        quotaTotalBytes = intent.getLongExtra(SingBoxVpnService.EXTRA_QUOTA_TOTAL_BYTES, 0L)
+                    )
+                )
+                if (nextState == SingBoxVpnService.STATE_CONFIG_FAILED) {
+                    configFailureRetry += 1
+                }
+            }
+        }
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Context.RECEIVER_NOT_EXPORTED
+        } else {
+            0
+        }
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            IntentFilter(SingBoxVpnService.ACTION_STATE_CHANGED),
+            flags
+        )
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
+
     fun refreshBootstrap() {
         scope.launch {
             val linkedAccount = telegramAccount
@@ -158,7 +231,7 @@ fun SovietVpnApp(
                         if (nextServers.none { it.id == selectedServerId }) {
                             selectedServerId = nextServers.firstOrNull()?.id ?: selectedServerId
                         }
-                        if (!userTouchedConnection) {
+                        if (!userTouchedConnection && !serviceControlledState) {
                             state = LinkState.Off
                         }
                         apiNotice = if (nextServers.isEmpty()) {
@@ -170,7 +243,7 @@ fun SovietVpnApp(
                     .onFailure { error ->
                         showingTelegramConfigs = true
                         serverNodes = emptyList()
-                        if (!userTouchedConnection) {
+                        if (!userTouchedConnection && !serviceControlledState) {
                             state = LinkState.Off
                         }
                         apiNotice = error.message?.take(90) ?: "Не удалось загрузить Telegram-конфиги"
@@ -183,14 +256,15 @@ fun SovietVpnApp(
                     val apiNodes = bootstrap.nodes.mapIndexed { index, node -> node.toServerNode(index) }
                     showingTelegramConfigs = false
                     serverNodes = apiNodes
+                    quotaStatus = bootstrap.quota
                     if (apiNodes.none { it.id == selectedServerId }) {
                         selectedServerId = apiNodes.firstOrNull()?.id ?: selectedServerId
                     }
-                    if (!userTouchedConnection) state = LinkState.Off
+                    if (!userTouchedConnection && !serviceControlledState) state = LinkState.Off
                     apiNotice = null
                 }
                 .onFailure { error ->
-                    if (!userTouchedConnection) state = LinkState.Off
+                    if (!userTouchedConnection && !serviceControlledState) state = LinkState.Off
                     apiNotice = error.message?.take(90) ?: "API недоступен"
                 }
         }
@@ -211,6 +285,14 @@ fun SovietVpnApp(
     }
 
     LaunchedEffect(Unit) {
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            notices = true
+        }
         refreshBootstrap()
         refreshRoutingPolicy()
     }
@@ -260,12 +342,79 @@ fun SovietVpnApp(
             routingDraft.routeRules != routingPolicy.routeRules
     }
 
-    startConnection = {
-        val vlessUri = selectedServer.vlessUri
-        if (showingTelegramConfigs && vlessUri.isNullOrBlank()) {
+    fun quotaUsedBytes(): Long {
+        val quotaBytes = quotaStatus?.usedBytes ?: 0L
+        val telegramBytes = if (showingTelegramConfigs) {
+            selectedServer.usedBytes
+        } else {
+            0L
+        }
+        return maxOf(quotaBytes, telegramBytes, trafficBytes)
+    }
+
+    fun quotaTotalBytes(): Long {
+        val quotaBytes = quotaStatus?.totalBytes ?: 0L
+        val telegramBytes = if (showingTelegramConfigs) {
+            selectedServer.totalBytes
+        } else {
+            0L
+        }
+        return maxOf(quotaBytes, telegramBytes, runtimeQuotaTotalBytes)
+    }
+
+    suspend fun resolveVlessUri(forceNew: Boolean = false): String {
+        selectedServer.vlessUri?.takeIf { it.isNotBlank() }?.let { return it }
+        if (!forceNew) {
+            api.activeVlessUri()?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+        val issued = api.issueVpnConfig(
+            region = selectedServer.region.takeIf { it.isNotBlank() },
+            exitNodeId = selectedServer.id.substringBefore(":").takeIf { it.isNotBlank() }
+        )
+        return requireNotNull(issued.vlessUri?.takeIf { it.isNotBlank() }) { "Сервер не вернул VLESS-конфиг" }
+    }
+
+    suspend fun startTunnelWithConfig(policy: RoutingPolicy, forceNewConfig: Boolean = false) {
+        val vlessUri = resolveVlessUri(forceNew = forceNewConfig)
+        SingBoxTunnel(context).start(
+            vlessUri,
+            policy,
+            quotaUsedBytes = quotaUsedBytes(),
+            quotaTotalBytes = quotaTotalBytes()
+        )
+    }
+
+    LaunchedEffect(configFailureRetry) {
+        if (configFailureRetry <= 0) return@LaunchedEffect
+        if (autoConfigRetryCount >= 1) {
             state = LinkState.Off
-            apiNotice = "У выбранного Telegram-конфига нет VLESS-ссылки"
-        } else if (showingTelegramConfigs && !selectedServer.available) {
+            apiNotice = "Новый конфиг тоже не запустился"
+            return@LaunchedEffect
+        }
+        autoConfigRetryCount += 1
+        state = LinkState.Connecting
+        apiNotice = "Конфиг не заработал, запрашиваем новый..."
+        runCatching {
+            api.clearSavedActiveConfig()
+            val policy = if (hasRoutingDraftChanges()) routingDraft else api.cachedRoutingPolicy()
+            startTunnelWithConfig(policy, forceNewConfig = true)
+        }
+            .onSuccess {
+                serviceControlledState = true
+                autoConfigRetryCount = 0
+                state = LinkState.On
+                apiNotice = "Новый конфиг применен"
+            }
+            .onFailure { error ->
+                serviceControlledState = false
+                state = LinkState.Off
+                apiNotice = error.message?.take(90) ?: "Не удалось получить новый конфиг"
+            }
+    }
+
+    startConnection = {
+        autoConfigRetryCount = 0
+        if (showingTelegramConfigs && !selectedServer.available) {
             state = LinkState.Off
             apiNotice = "Выбранный Telegram-конфиг отключен на ноде"
         } else {
@@ -287,15 +436,21 @@ fun SovietVpnApp(
                                 }
                             }
                     }
-                    SingBoxTunnel(context).start(vlessUri ?: WorkingVlessUri, policy)
+                    runCatching { startTunnelWithConfig(policy) }
+                        .getOrElse {
+                            api.clearSavedActiveConfig()
+                            startTunnelWithConfig(policy, forceNewConfig = true)
+                        }
                 }
                     .onSuccess {
                         state = LinkState.On
+                        serviceControlledState = true
                         apiNotice = "VPN запущен: ${selectedServer.city}"
                     }
                     .onFailure { error ->
                         runCatching { SingBoxTunnel(context).stop() }
                         state = LinkState.Off
+                        serviceControlledState = false
                         apiNotice = error.message?.take(90) ?: "Не удалось запустить VPN"
                     }
             }
@@ -305,8 +460,8 @@ fun SovietVpnApp(
     fun saveRoutingPolicy(nextPolicy: RoutingPolicy) {
         routingNotice = "сохраняем маршруты..."
         scope.launch {
-            if (state == LinkState.On) {
-                runCatching { SingBoxTunnel(context).start(selectedServer.vlessUri ?: WorkingVlessUri, nextPolicy) }
+            if (state == LinkState.On || state == LinkState.Paused) {
+                runCatching { startTunnelWithConfig(nextPolicy) }
                 delay(350)
             }
             runCatching { api.updateRoutingPolicy(nextPolicy) }
@@ -314,9 +469,9 @@ fun SovietVpnApp(
                     routingPolicy = saved
                     routingDraft = saved
                     routingNotice = "маршруты утверждены"
-                    if (state == LinkState.On) {
+                    if (state == LinkState.On || state == LinkState.Paused) {
                         runCatching {
-                            SingBoxTunnel(context).start(selectedServer.vlessUri ?: WorkingVlessUri, saved)
+                            startTunnelWithConfig(saved)
                         }.onFailure { error ->
                             apiNotice = error.message?.take(90) ?: "VPN требует перезапуска"
                         }
@@ -339,14 +494,14 @@ fun SovietVpnApp(
 
     fun updateRoutingDraft(nextPolicy: RoutingPolicy) {
         routingDraft = nextPolicy
-        routingNotice = if (state == LinkState.On) {
+        routingNotice = if (state == LinkState.On || state == LinkState.Paused) {
             "применено локально · синхронизация позже"
         } else {
             "изменено локально · синхронизация позже"
         }
-        if (state == LinkState.On) {
+        if (state == LinkState.On || state == LinkState.Paused) {
             scope.launch {
-                runCatching { SingBoxTunnel(context).start(selectedServer.vlessUri ?: WorkingVlessUri, nextPolicy) }
+                runCatching { startTunnelWithConfig(nextPolicy) }
                     .onFailure { error ->
                         apiNotice = error.message?.take(90) ?: "Локальные маршруты требуют перезапуска"
                     }
@@ -425,15 +580,17 @@ fun SovietVpnApp(
                 apiNotice = "Выбранный Telegram-конфиг отключен на ноде"
                 return
             }
-            if (showingTelegramConfigs && selectedServer.vlessUri.isNullOrBlank()) {
-                apiNotice = "Сначала выберите Telegram-конфиг с VLESS-ссылкой"
-                return
-            }
             val prepareIntent = VpnService.prepare(context)
             if (prepareIntent != null) {
                 state = LinkState.Connecting
                 vpnPermissionLauncher.launch(prepareIntent)
                 return
+            }
+            if (
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
             startConnection()
         } else {
@@ -442,10 +599,12 @@ fun SovietVpnApp(
                 runCatching { SingBoxTunnel(context).stop() }
                     .onSuccess {
                         state = LinkState.Off
+                        serviceControlledState = false
                         apiNotice = "VPN остановлен"
                     }
                     .onFailure { error ->
                         state = LinkState.Off
+                        serviceControlledState = false
                         apiNotice = error.message?.take(90) ?: "Не удалось остановить VPN"
                     }
             }
@@ -506,6 +665,8 @@ fun SovietVpnApp(
                         linkState = state,
                         server = selectedServer,
                         apiNotice = apiNotice,
+                        trafficUsedBytes = quotaUsedBytes(),
+                        trafficTotalBytes = quotaTotalBytes(),
                         nightTheme = darkRoom,
                         onToggle = ::cycleConnection,
                         onServers = { screen = AppScreen.Servers }
@@ -556,7 +717,7 @@ fun SovietVpnApp(
             }
 
             val offOverlayAlpha = when (state) {
-                LinkState.On -> 0f
+                LinkState.On, LinkState.Paused -> 0f
                 LinkState.Connecting -> if (screen == AppScreen.Home) 0f else 0.18f
                 LinkState.Off -> if (screen == AppScreen.Home) 0f else 0.28f
             }

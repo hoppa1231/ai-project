@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -50,15 +51,18 @@ fun HomeScreen(
     linkState: LinkState,
     server: ServerNode,
     apiNotice: String?,
+    trafficUsedBytes: Long,
+    trafficTotalBytes: Long,
     nightTheme: Boolean,
     onToggle: () -> Unit,
     onServers: () -> Unit
 ) {
     val isOff = linkState == LinkState.Off
-    val isOn = linkState == LinkState.On
+    val isOn = linkState == LinkState.On || linkState == LinkState.Paused
     val isConnecting = linkState == LinkState.Connecting
     val gold = when (linkState) {
         LinkState.On -> Gold
+        LinkState.Paused -> GoldDeep
         LinkState.Connecting -> OrangeSignal
         LinkState.Off -> Gold.copy(alpha = 0.45f)
     }
@@ -84,6 +88,7 @@ fun HomeScreen(
                 subtitle = when (linkState) {
                     LinkState.Off -> "— связь обесточена —"
                     LinkState.Connecting -> "— устанавливаемъ соединеніе —"
+                    LinkState.Paused -> "— связь поставлена на паузу —"
                     LinkState.On -> "— да здравствуетъ свободный трафикъ! —"
                 },
                 color = titleColor,
@@ -109,6 +114,7 @@ fun HomeScreen(
                 text = when (linkState) {
                     LinkState.Off -> "↑ нажмите кнопку или потяните вверхъ ↑"
                     LinkState.Connecting -> "∙∙∙ замыкаемъ контакты ∙∙∙"
+                    LinkState.Paused -> "↓ нажмите кнопку, чтобы остановить связь ↓"
                     LinkState.On -> "↓ нажмите кнопку или потяните внизъ ↓"
                 },
                 color = if (isConnecting) OrangeSignal else bone.copy(alpha = 0.78f),
@@ -128,6 +134,13 @@ fun HomeScreen(
                 StatusPanel(linkState = linkState, gold = gold, bone = bone, nightTheme = nightTheme)
             }
             Spacer(Modifier.height(12.dp))
+            TrafficQuotaBar(
+                usedBytes = trafficUsedBytes,
+                totalBytes = trafficTotalBytes,
+                active = linkState != LinkState.Off,
+                nightTheme = nightTheme
+            )
+            Spacer(Modifier.height(8.dp))
             ServerTicket(
                 server = server,
                 enabled = !isOff,
@@ -155,6 +168,77 @@ fun HomeScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun TrafficQuotaBar(
+    usedBytes: Long,
+    totalBytes: Long,
+    active: Boolean,
+    nightTheme: Boolean
+) {
+    val progress = if (totalBytes <= 0L) 1f else (usedBytes.toDouble() / totalBytes.toDouble()).toFloat().coerceIn(0f, 1f)
+    val label = if (totalBytes <= 0L) {
+        "${formatTrafficBytes(usedBytes)} / ∞"
+    } else {
+        "${formatTrafficBytes(usedBytes)} / ${formatTrafficBytes(totalBytes)}"
+    }
+    val border = if (nightTheme) GoldDeep else Burgundy
+    val text = if (nightTheme) BoneLight else InkSoft
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, border.copy(alpha = if (active) 0.85f else 0.45f))
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "ТРАФИК",
+                color = border,
+                fontFamily = PtSans,
+                fontWeight = FontWeight.Bold,
+                fontSize = 9.sp,
+                letterSpacing = 2.sp
+            )
+            Text(
+                label,
+                color = text,
+                fontFamily = PtSans,
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .padding(top = 5.dp),
+            color = if (active) Gold else GoldDeep,
+            trackColor = if (nightTheme) Color(0xFF3A1A0A) else Bone.copy(alpha = 0.7f)
+        )
+    }
+}
+
+private fun formatTrafficBytes(bytes: Long): String {
+    val units = arrayOf("Б", "КБ", "МБ", "ГБ", "ТБ")
+    var value = bytes.coerceAtLeast(0L).toDouble()
+    var unit = 0
+    while (value >= 1024.0 && unit < units.lastIndex) {
+        value /= 1024.0
+        unit++
+    }
+    return if (unit == 0) {
+        "${bytes.coerceAtLeast(0L)} ${units[unit]}"
+    } else {
+        String.format(java.util.Locale.US, "%.1f %s", value, units[unit])
     }
 }
 

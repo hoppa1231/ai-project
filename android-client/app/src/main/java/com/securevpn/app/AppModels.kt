@@ -15,8 +15,14 @@ enum class AppScreen {
 enum class LinkState {
     Off,
     Connecting,
+    Paused,
     On
 }
+
+data class VpnRuntimeState(
+    val linkState: LinkState,
+    val trafficText: String
+)
 
 data class ServerNode(
     val id: String,
@@ -27,6 +33,8 @@ data class ServerNode(
     val load: Int,
     val recommended: Boolean = false,
     val vlessUri: String? = null,
+    val usedBytes: Long = 0L,
+    val totalBytes: Long = 0L,
     val available: Boolean = true
 )
 
@@ -40,9 +48,6 @@ val ServerNodes = listOf(
     ServerNode("wld-1", "ВЛАДИВОСТОКЪ", "ТИХООКЕАНСКIЙ", "wld-1", 142, 19),
     ServerNode("svr-1", "МУРМАНСКЪ", "СѢВЕРНЫЙ-1", "svr-1", 38, 11)
 )
-
-const val WorkingVlessUri =
-    "vless://87d6ff5c-641c-4b12-9b37-07fbf2a14544@85.159.228.153:443?encryption=none&fp=chrome&pbk=Oe-jMKffAU8_PKr2Bx0eGstAREZeMJ0mflHoKs2kSTU&security=reality&sid=f72d&sni=koel.dev&spx=%2F7jrs3tvFPS6yZtI&type=tcp#close%20relatives-%ED%85%94%EB%A0%88%EB%B9%84%EC%A0%84"
 
 fun VpnNode.toServerNode(index: Int): ServerNode {
     val displayName = name.ifBlank { region.ifBlank { "УЗЕЛ-${index + 1}" } }
@@ -85,6 +90,8 @@ fun TelegramLinkedConfig.toServerNode(index: Int): ServerNode {
         load = usagePercent.coerceIn(0, 100),
         recommended = index == 0,
         vlessUri = vlessUri,
+        usedBytes = upBytes + downBytes,
+        totalBytes = totalBytes,
         available = enabled
     )
 }

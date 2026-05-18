@@ -230,6 +230,10 @@ class BackendApi(
 
     fun hasActiveConfig(): Boolean = !activeConfigId.isNullOrBlank()
 
+    fun activeVlessUri(): String? = prefs.getString(KEY_ACTIVE_VLESS_URI, null)
+
+    fun clearSavedActiveConfig() = clearActiveConfig()
+
     private suspend fun loadNodes(): List<VpnNode> {
         val response = authorizedRequest(path = "/nodes")
         val nodes = JSONArray(response)
@@ -505,6 +509,11 @@ data class QuotaStatus(
 ) {
     val totalGb: Double get() = freeGb + purchasedGb
     val usedPercent: Float get() = if (totalGb <= 0.0) 0f else (usedGb / totalGb).toFloat().coerceIn(0f, 1f)
+    val usedBytes: Long get() = gbToBytes(usedGb)
+    val totalBytes: Long get() = gbToBytes(totalGb)
+
+    private fun gbToBytes(value: Double): Long =
+        if (value <= 0.0) 0L else (value * 1024.0 * 1024.0 * 1024.0).toLong()
 }
 
 data class IssuedConfig(

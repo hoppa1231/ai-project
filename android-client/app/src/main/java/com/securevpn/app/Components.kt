@@ -68,6 +68,7 @@ import kotlin.math.sin
 fun Modifier.drawLampGlow(state: LinkState): Modifier = drawBehind {
     val glowColor = when (state) {
         LinkState.On -> GoldLight
+        LinkState.Paused -> GoldDeep
         LinkState.Connecting -> OrangeSignal
         LinkState.Off -> Color.Transparent
     }
@@ -219,7 +220,7 @@ fun VpnKnifeSwitch(
                     onVerticalDrag = { _, dragAmount -> dragDistance += dragAmount },
                     onDragEnd = {
                         if (state == LinkState.Off && dragDistance < -36f) onToggle()
-                        if (state == LinkState.On && dragDistance > 36f) onToggle()
+                        if ((state == LinkState.On || state == LinkState.Paused) && dragDistance > 36f) onToggle()
                         dragDistance = 0f
                     },
                     onDragCancel = { dragDistance = 0f }
@@ -251,6 +252,7 @@ fun VpnKnifeSwitch(
 fun StatusPanel(linkState: LinkState, gold: Color, bone: Color, nightTheme: Boolean) {
     val statusText = when (linkState) {
         LinkState.On -> "НА СВЯЗИ"
+        LinkState.Paused -> "НА ПАУЗЕ"
         LinkState.Connecting -> "СОЕДИНЯЕМЪ..."
         LinkState.Off -> "ОБЕСТОЧЕНО"
     }
@@ -284,6 +286,7 @@ fun StatusPanel(linkState: LinkState, gold: Color, bone: Color, nightTheme: Bool
                     statusText,
                     color = when (linkState) {
                         LinkState.On -> Gold
+                        LinkState.Paused -> GoldDeep
                         LinkState.Connecting -> OrangeSignal
                         LinkState.Off -> bone
                     },
@@ -301,6 +304,7 @@ fun StatusPanel(linkState: LinkState, gold: Color, bone: Color, nightTheme: Bool
                     .background(
                         color = when (linkState) {
                             LinkState.On -> GoldLight
+                            LinkState.Paused -> GoldDeep
                             LinkState.Connecting -> OrangeSignal
                             LinkState.Off -> Color(0xFF3A1A1A)
                         },
