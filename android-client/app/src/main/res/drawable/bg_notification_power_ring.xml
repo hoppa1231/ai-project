@@ -2,12 +2,12 @@
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="oval">
     <gradient
-        android:gradientRadius="48dp"
+        android:gradientRadius="@dimen/notification_power_gradient_radius"
         android:type="radial"
-        android:centerColor="#3A1A0A"
-        android:endColor="#120703"
-        android:startColor="#A36E18" />
+        android:centerColor="@color/notification_power_center"
+        android:endColor="@color/notification_power_end"
+        android:startColor="@color/notification_power_start" />
     <stroke
-        android:width="2dp"
-        android:color="#C58B25" />
+        android:width="@dimen/notification_panel_stroke_width"
+        android:color="@color/notification_power_stroke" />
 </shape>

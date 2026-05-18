@@ -2,8 +2,8 @@
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:id="@android:id/background">
         <shape>
-            <solid android:color="#3A1A0A" />
-            <corners android:radius="4dp" />
+            <solid android:color="@color/notification_progress_track" />
+            <corners android:radius="@dimen/notification_progress_corner_radius" />
         </shape>
     </item>
     <item android:id="@android:id/progress">
@@ -11,9 +11,9 @@
             <shape>
                 <gradient
                     android:angle="0"
-                    android:endColor="#F0C766"
-                    android:startColor="#A96D17" />
-                <corners android:radius="4dp" />
+                    android:endColor="@color/notification_progress_end"
+                    android:startColor="@color/notification_progress_start" />
+                <corners android:radius="@dimen/notification_progress_corner_radius" />
             </shape>
         </clip>
     </item>

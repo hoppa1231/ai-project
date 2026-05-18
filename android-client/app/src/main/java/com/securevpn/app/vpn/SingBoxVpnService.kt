@@ -54,6 +54,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import java.io.File
 import java.net.Inet6Address
 import java.net.InetAddress
@@ -93,15 +94,13 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
                 paused = false
                 traffic.reset()
                 connectionOutbounds.clear()
-                startForeground(NOTIFICATION_ID, buildNotification("Подключение..."))
+                startForeground(NOTIFICATION_ID, buildNotification("Подключение...", custom = false))
                 publishState(STATE_CONNECTING)
+                refreshNotification("Подключение...")
                 scope.launch {
-                    runCatching { startCore(config) }
+                    runCatching { withTimeout(START_TIMEOUT_MS) { startCore(config) } }
                         .onFailure { error ->
-                            startForeground(
-                                NOTIFICATION_ID,
-                                buildNotification(error.message?.take(90) ?: "Ошибка запуска VPN")
-                            )
+                            safeNotify(error.message?.take(90) ?: "Ошибка запуска VPN")
                             publishState(STATE_CONFIG_FAILED)
                             closeCoreResources()
                             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -595,8 +594,16 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
         notificationText = text
         lastNotificationUpdate = now
         publishState(if (paused) STATE_PAUSED else STATE_ON)
+        safeNotify(text)
+    }
+
+    private fun safeNotify(text: String) {
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(NOTIFICATION_ID, buildNotification(text))
+        runCatching {
+            manager.notify(NOTIFICATION_ID, buildNotification(text, custom = true))
+        }.onFailure {
+            manager.notify(NOTIFICATION_ID, buildNotification(text, custom = false))
+        }
     }
 
     private fun publishState(state: String) {
@@ -608,6 +615,7 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
             .putString(KEY_TRAFFIC, line)
             .putLong(KEY_TRAFFIC_BYTES, currentBytes)
             .putLong(KEY_QUOTA_TOTAL_BYTES, quotaTotalBytes)
+            .putLong(KEY_UPDATED_AT, System.currentTimeMillis())
             .apply()
         sendBroadcast(
             Intent(ACTION_STATE_CHANGED)
@@ -616,13 +624,14 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
                 .putExtra(EXTRA_TRAFFIC, line)
                 .putExtra(EXTRA_TRAFFIC_BYTES, currentBytes)
                 .putExtra(EXTRA_QUOTA_TOTAL_BYTES, quotaTotalBytes)
+                .putExtra(EXTRA_UPDATED_AT, System.currentTimeMillis())
         )
     }
 
     private fun statePrefs(): SharedPreferences =
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
 
-    private fun buildNotification(text: String): android.app.Notification {
+    private fun buildNotification(text: String, custom: Boolean = true): android.app.Notification {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(
@@ -656,6 +665,24 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
         val trafficLine = quotaDisplayLine(currentBytes, quotaTotalBytes)
         val progress = quotaProgress(currentBytes, quotaTotalBytes)
         val title = if (paused) "ВПН на паузе" else "ВПН включен"
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_vpn)
+            .setContentTitle(title)
+            .setContentText("$text · $trafficLine")
+            .setSubText(trafficLine)
+            .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setColor(0xFF2A150A.toInt())
+            .setColorized(true)
+            .addAction(R.drawable.ic_notification_pause, pauseTitle, pauseIntent)
+            .addAction(R.drawable.ic_notification_stop, "Стоп", stopIntent)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+
+        if (!custom) return builder.build()
+
         val icon = if (paused) R.drawable.ic_notification_play else R.drawable.ic_notification_power
         val customView = RemoteViews(packageName, R.layout.notification_vpn).apply {
             setImageViewResource(R.id.notificationStateIcon, icon)
@@ -668,23 +695,13 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
             setOnClickPendingIntent(R.id.notificationPause, pauseIntent)
             setOnClickPendingIntent(R.id.notificationStop, stopIntent)
         }
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_vpn)
-            .setContentTitle(title)
+        return builder
+            .clearActions()
             .setContentText(text)
-            .setSubText(trafficLine)
-            .setContentIntent(pendingIntent)
             .setCustomContentView(customView)
             .setCustomBigContentView(customView)
             .setCustomHeadsUpContentView(customView)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setColor(0xFF2A150A.toInt())
-            .setColorized(true)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
             .build()
     }
 
@@ -810,6 +827,7 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
         const val EXTRA_TRAFFIC_BYTES = "traffic_bytes"
         const val EXTRA_QUOTA_USED_BYTES = "quota_used_bytes"
         const val EXTRA_QUOTA_TOTAL_BYTES = "quota_total_bytes"
+        const val EXTRA_UPDATED_AT = "updated_at"
         const val STATE_OFF = "OFF"
         const val STATE_CONNECTING = "CONNECTING"
         const val STATE_PAUSED = "PAUSED"
@@ -818,11 +836,13 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
         private const val CHANNEL_ID = "securevpn_control"
         private const val NOTIFICATION_ID = 42
         private const val FALLBACK_TUN_DNS = "172.19.0.2"
+        private const val START_TIMEOUT_MS = 45_000L
         private const val PREFS_NAME = "vpn-runtime-state"
         private const val KEY_STATE = "state"
         private const val KEY_TRAFFIC = "traffic"
         private const val KEY_TRAFFIC_BYTES = "traffic_bytes"
         private const val KEY_QUOTA_TOTAL_BYTES = "quota_total_bytes"
+        private const val KEY_UPDATED_AT = "updated_at"
 
         fun runtimeState(context: Context): RuntimeSnapshot {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -830,7 +850,8 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
                 state = prefs.getString(KEY_STATE, STATE_OFF) ?: STATE_OFF,
                 trafficText = prefs.getString(KEY_TRAFFIC, "") ?: "",
                 trafficBytes = prefs.getLong(KEY_TRAFFIC_BYTES, 0L),
-                quotaTotalBytes = prefs.getLong(KEY_QUOTA_TOTAL_BYTES, 0L)
+                quotaTotalBytes = prefs.getLong(KEY_QUOTA_TOTAL_BYTES, 0L),
+                updatedAt = prefs.getLong(KEY_UPDATED_AT, 0L)
             )
         }
     }
@@ -839,7 +860,8 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
         val state: String,
         val trafficText: String,
         val trafficBytes: Long,
-        val quotaTotalBytes: Long
+        val quotaTotalBytes: Long,
+        val updatedAt: Long
     )
 
     private class TrafficCounters {

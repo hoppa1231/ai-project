@@ -210,7 +210,6 @@ fun VpnKnifeSwitch(
 ) {
     var dragDistance by remember { mutableFloatStateOf(0f) }
     val switchInteraction = remember { MutableInteractionSource() }
-    val enabled = state != LinkState.Connecting
 
     Box(
         modifier = modifier
@@ -240,7 +239,6 @@ fun VpnKnifeSwitch(
                 .align(Alignment.Center)
                 .size(116.dp)
                 .clickable(
-                    enabled = enabled,
                     interactionSource = switchInteraction,
                     indication = null
                 ) { onToggle() }

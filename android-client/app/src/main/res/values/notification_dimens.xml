@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="notification_panel_height">96dp</dimen>
+    <dimen name="notification_panel_padding_horizontal">8dp</dimen>
+    <dimen name="notification_panel_outer_margin_horizontal">10dp</dimen>
+    <dimen name="notification_panel_padding_top">8dp</dimen>
+    <dimen name="notification_panel_padding_bottom">8dp</dimen>
+    <dimen name="notification_side_width">54dp</dimen>
+    <dimen name="notification_content_gap">7dp</dimen>
+    <dimen name="notification_power_size">48dp</dimen>
+    <dimen name="notification_power_icon_size">22dp</dimen>
+    <dimen name="notification_status_top_margin">3dp</dimen>
+    <dimen name="notification_traffic_top_margin">1dp</dimen>
+    <dimen name="notification_progress_height">4dp</dimen>
+    <dimen name="notification_progress_top_margin">4dp</dimen>
+    <dimen name="notification_progress_corner_radius">2dp</dimen>
+    <dimen name="notification_actions_height">28dp</dimen>
+    <dimen name="notification_actions_top_margin">5dp</dimen>
+    <dimen name="notification_button_gap">5dp</dimen>
+    <dimen name="notification_hint_top_margin">0dp</dimen>
+    <dimen name="notification_title_text_size">18sp</dimen>
+    <dimen name="notification_status_text_size">8sp</dimen>
+    <dimen name="notification_traffic_text_size">10sp</dimen>
+    <dimen name="notification_button_text_size">11sp</dimen>
+    <dimen name="notification_hint_text_size">0sp</dimen>
+    <dimen name="notification_title_shadow_dx">1dp</dimen>
+    <dimen name="notification_title_shadow_dy">1dp</dimen>
+    <dimen name="notification_title_shadow_radius">2dp</dimen>
+    <dimen name="notification_panel_stroke_width">2dp</dimen>
+    <dimen name="notification_control_stroke_width">1dp</dimen>
+    <dimen name="notification_panel_corner_radius">6dp</dimen>
+    <dimen name="notification_button_corner_radius">4dp</dimen>
+    <dimen name="notification_power_gradient_radius">28dp</dimen>
+</resources>

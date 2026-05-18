@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="NotificationTitleText">
+        <item name="android:ellipsize">end</item>
+        <item name="android:fontFamily">serif</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:shadowColor">@color/notification_shadow</item>
+        <item name="android:shadowDx">@dimen/notification_title_shadow_dx</item>
+        <item name="android:shadowDy">@dimen/notification_title_shadow_dy</item>
+        <item name="android:shadowRadius">@dimen/notification_title_shadow_radius</item>
+        <item name="android:textColor">@color/notification_gold_title</item>
+        <item name="android:textSize">@dimen/notification_title_text_size</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="NotificationStatusText">
+        <item name="android:ellipsize">end</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:gravity">center</item>
+        <item name="android:maxLines">2</item>
+        <item name="android:textColor">@color/notification_gold_status</item>
+        <item name="android:textSize">@dimen/notification_status_text_size</item>
+    </style>
+
+    <style name="NotificationTrafficText">
+        <item name="android:ellipsize">end</item>
+        <item name="android:maxLines">2</item>
+        <item name="android:textColor">@color/notification_gold_text</item>
+        <item name="android:textSize">@dimen/notification_traffic_text_size</item>
+    </style>
+
+    <style name="NotificationButtonText">
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:fontFamily">serif</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textColor">@color/notification_gold</item>
+        <item name="android:textSize">@dimen/notification_button_text_size</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="NotificationHintText">
+        <item name="android:ellipsize">end</item>
+        <item name="android:fontFamily">serif</item>
+        <item name="android:gravity">center</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">@color/notification_gold_muted</item>
+        <item name="android:textSize">@dimen/notification_hint_text_size</item>
+        <item name="android:textStyle">italic</item>
+    </style>
+</resources>

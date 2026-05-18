@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="#33240F" />
+    <solid android:color="@color/notification_status_fill" />
     <stroke
-        android:width="1dp"
-        android:color="#B9903B" />
-    <corners android:radius="8dp" />
+        android:width="@dimen/notification_control_stroke_width"
+        android:color="@color/notification_status_stroke" />
+    <corners android:radius="@dimen/notification_panel_corner_radius" />
 </shape>

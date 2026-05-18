@@ -175,15 +175,24 @@ fun SovietVpnApp(
         trafficText = snapshot.trafficText
         trafficBytes = snapshot.trafficBytes
         runtimeQuotaTotalBytes = snapshot.quotaTotalBytes
-        state = when (snapshot.state) {
+        val runtimeState = if (
+            snapshot.state == SingBoxVpnService.STATE_CONNECTING &&
+            snapshot.updatedAt > 0L &&
+            System.currentTimeMillis() - snapshot.updatedAt > CONNECTING_STATE_TTL_MS
+        ) {
+            SingBoxVpnService.STATE_OFF
+        } else {
+            snapshot.state
+        }
+        state = when (runtimeState) {
             SingBoxVpnService.STATE_ON -> LinkState.On
             SingBoxVpnService.STATE_PAUSED -> LinkState.Paused
             SingBoxVpnService.STATE_CONNECTING -> LinkState.Connecting
             SingBoxVpnService.STATE_CONFIG_FAILED -> LinkState.Off
             else -> LinkState.Off
         }
-        serviceControlledState = snapshot.state != SingBoxVpnService.STATE_OFF &&
-            snapshot.state != SingBoxVpnService.STATE_CONFIG_FAILED
+        serviceControlledState = runtimeState != SingBoxVpnService.STATE_OFF &&
+            runtimeState != SingBoxVpnService.STATE_CONFIG_FAILED
     }
 
     DisposableEffect(context) {
@@ -197,7 +206,8 @@ fun SovietVpnApp(
                         state = nextState,
                         trafficText = intent.getStringExtra(SingBoxVpnService.EXTRA_TRAFFIC).orEmpty(),
                         trafficBytes = intent.getLongExtra(SingBoxVpnService.EXTRA_TRAFFIC_BYTES, 0L),
-                        quotaTotalBytes = intent.getLongExtra(SingBoxVpnService.EXTRA_QUOTA_TOTAL_BYTES, 0L)
+                        quotaTotalBytes = intent.getLongExtra(SingBoxVpnService.EXTRA_QUOTA_TOTAL_BYTES, 0L),
+                        updatedAt = intent.getLongExtra(SingBoxVpnService.EXTRA_UPDATED_AT, System.currentTimeMillis())
                     )
                 )
                 if (nextState == SingBoxVpnService.STATE_CONFIG_FAILED) {
@@ -573,8 +583,14 @@ fun SovietVpnApp(
     }
 
     fun cycleConnection() {
-        if (state == LinkState.Connecting) return
         userTouchedConnection = true
+        if (state == LinkState.Connecting) {
+            state = LinkState.Off
+            serviceControlledState = false
+            apiNotice = "Подключение сброшено"
+            scope.launch { runCatching { SingBoxTunnel(context).stop() } }
+            return
+        }
         if (state == LinkState.Off) {
             if (showingTelegramConfigs && !selectedServer.available) {
                 apiNotice = "Выбранный Telegram-конфиг отключен на ноде"
@@ -781,6 +797,8 @@ private fun routeRuleName(matchType: String, action: String): String {
     }
     return "$subject $route"
 }
+
+private const val CONNECTING_STATE_TTL_MS = 45_000L
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable

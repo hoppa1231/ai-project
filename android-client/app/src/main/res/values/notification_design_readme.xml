@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        VPN notification design map:
+        - notification_vpn.xml: structure only.
+        - notification_colors.xml: palette.
+        - notification_dimens.xml: spacing, sizes, typography sizes.
+        - notification_styles.xml: text styles.
+        - bg_notification_*.xml: reusable panel/button/progress shapes.
+    -->
+</resources>

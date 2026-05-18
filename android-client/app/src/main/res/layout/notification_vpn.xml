@@ -1,139 +1,120 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="190dp"
-    android:background="@drawable/bg_notification_vpn"
-    android:orientation="horizontal"
-    android:paddingStart="12dp"
-    android:paddingTop="14dp"
-    android:paddingEnd="12dp"
-    android:paddingBottom="14dp">
+    android:layout_height="@dimen/notification_panel_height"
+    android:orientation="vertical">
 
     <LinearLayout
-        android:layout_width="92dp"
+        android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:gravity="center"
-        android:orientation="vertical">
-
-        <FrameLayout
-            android:layout_width="82dp"
-            android:layout_height="82dp"
-            android:background="@drawable/bg_notification_power_ring">
-
-            <ImageView
-                android:id="@+id/notificationStateIcon"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:layout_gravity="center"
-                android:contentDescription="@null"
-                android:tint="#F2B53D" />
-        </FrameLayout>
-
-        <TextView
-            android:id="@+id/notificationStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:ellipsize="end"
-            android:fontFamily="sans-serif-medium"
-            android:gravity="center"
-            android:maxLines="2"
-            android:textColor="#CFA75A"
-            android:textSize="10sp" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_marginStart="10dp"
-        android:layout_weight="1"
-        android:gravity="center_vertical"
-        android:orientation="vertical">
-
-        <TextView
-            android:id="@+id/notificationTitle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:fontFamily="serif"
-            android:maxLines="1"
-            android:shadowColor="#AA000000"
-            android:shadowDx="1"
-            android:shadowDy="1"
-            android:shadowRadius="2"
-            android:textColor="#E0AE45"
-            android:textSize="28sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/notificationTraffic"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:ellipsize="end"
-            android:maxLines="2"
-            android:textColor="#F1D8A3"
-            android:textSize="13sp" />
-
-        <ProgressBar
-            android:id="@+id/notificationTrafficProgress"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:layout_width="match_parent"
-            android:layout_height="8dp"
-            android:layout_marginTop="8dp"
-            android:max="1000"
-            android:progress="0"
-            android:progressDrawable="@drawable/bg_notification_progress" />
+        android:layout_marginStart="@dimen/notification_panel_outer_margin_horizontal"
+        android:layout_marginEnd="@dimen/notification_panel_outer_margin_horizontal"
+        android:background="@drawable/bg_notification_vpn"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/notification_panel_padding_horizontal"
+        android:paddingTop="@dimen/notification_panel_padding_top"
+        android:paddingEnd="@dimen/notification_panel_padding_horizontal"
+        android:paddingBottom="@dimen/notification_panel_padding_bottom">
 
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="46dp"
-            android:layout_marginTop="10dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:layout_width="@dimen/notification_side_width"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <FrameLayout
+                android:layout_width="@dimen/notification_power_size"
+                android:layout_height="@dimen/notification_power_size"
+                android:background="@drawable/bg_notification_power_ring">
+
+                <ImageView
+                    android:id="@+id/notificationStateIcon"
+                    android:layout_width="@dimen/notification_power_icon_size"
+                    android:layout_height="@dimen/notification_power_icon_size"
+                    android:layout_gravity="center"
+                    android:contentDescription="@null" />
+            </FrameLayout>
 
             <TextView
-                android:id="@+id/notificationPause"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
-                android:background="@drawable/bg_notification_button_primary"
-                android:clickable="true"
-                android:focusable="true"
-                android:fontFamily="serif"
+                android:id="@+id/notificationStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/notification_status_top_margin"
+                android:ellipsize="end"
                 android:gravity="center"
-                android:textColor="#D9A23F"
-                android:textSize="15sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/notificationStop"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:background="@drawable/bg_notification_button_stop"
-                android:clickable="true"
-                android:focusable="true"
-                android:fontFamily="serif"
-                android:gravity="center"
-                android:textColor="#D9A23F"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+                android:maxLines="2"
+                android:textColor="@color/notification_gold_status"
+                android:textSize="@dimen/notification_status_text_size" />
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/notificationHint"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="11dp"
-            android:ellipsize="end"
-            android:fontFamily="serif"
-            android:gravity="center"
-            android:maxLines="1"
-            android:text="Нажмите, чтобы открыть панель связи"
-            android:textColor="#B99A68"
-            android:textSize="12sp"
-            android:textStyle="italic" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="@dimen/notification_content_gap"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/notificationTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/notification_gold_title"
+                android:textSize="@dimen/notification_title_text_size"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/notificationTraffic"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/notification_traffic_top_margin"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:textColor="@color/notification_gold_text"
+                android:textSize="@dimen/notification_traffic_text_size" />
+
+            <ProgressBar
+                android:id="@+id/notificationTrafficProgress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/notification_progress_height"
+                android:layout_marginTop="@dimen/notification_progress_top_margin"
+                android:max="1000"
+                android:progress="0" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/notification_actions_height"
+                android:layout_marginTop="@dimen/notification_actions_top_margin"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/notificationPause"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginEnd="@dimen/notification_button_gap"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_notification_button_primary"
+                    android:gravity="center"
+                    android:textColor="@color/notification_gold"
+                    android:textSize="@dimen/notification_button_text_size"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/notificationStop"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_notification_button_stop"
+                    android:gravity="center"
+                    android:textColor="@color/notification_gold"
+                    android:textSize="@dimen/notification_button_text_size"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+        </LinearLayout>
     </LinearLayout>
 </LinearLayout>

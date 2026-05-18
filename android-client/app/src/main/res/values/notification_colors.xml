@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="notification_panel_start">#3A1708</color>
+    <color name="notification_panel_center">#2A150A</color>
+    <color name="notification_panel_end">#160703</color>
+    <color name="notification_panel_fill">#241007</color>
+    <color name="notification_gold">#D9A23F</color>
+    <color name="notification_gold_bright">#F2B53D</color>
+    <color name="notification_gold_title">#E0AE45</color>
+    <color name="notification_gold_text">#F1D8A3</color>
+    <color name="notification_gold_muted">#B99A68</color>
+    <color name="notification_gold_status">#CFA75A</color>
+    <color name="notification_stroke">#B17719</color>
+    <color name="notification_primary_stroke">#D59A2F</color>
+    <color name="notification_stop_stroke">#D56D2F</color>
+    <color name="notification_button_fill">#241007</color>
+    <color name="notification_stop_start">#71100F</color>
+    <color name="notification_stop_end">#3B0908</color>
+    <color name="notification_progress_track">#3A1A0A</color>
+    <color name="notification_progress_start">#A96D17</color>
+    <color name="notification_progress_end">#F0C766</color>
+    <color name="notification_status_fill">#33240F</color>
+    <color name="notification_status_stroke">#B9903B</color>
+    <color name="notification_power_start">#A36E18</color>
+    <color name="notification_power_center">#3A1A0A</color>
+    <color name="notification_power_end">#120703</color>
+    <color name="notification_power_stroke">#C58B25</color>
+    <color name="notification_shadow">#AA000000</color>
+</resources>
