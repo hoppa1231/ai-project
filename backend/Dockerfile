@@ -1,7 +1,7 @@
-FROM eclipse-temurin:21-jdk AS build
+FROM gradle:9.3.0-jdk21 AS build
 WORKDIR /app
-COPY . .
-RUN chmod +x ./gradlew && ./gradlew --no-daemon clean installDist
+COPY --chown=gradle:gradle . .
+RUN gradle --no-daemon clean installDist
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
