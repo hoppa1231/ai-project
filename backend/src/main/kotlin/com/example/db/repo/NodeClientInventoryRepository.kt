@@ -91,6 +91,14 @@ class NodeClientInventoryRepository(private val dsl: DSLContext) {
         )?.let(::map)
     }
 
+    fun deleteByNodeAndEmail(nodeId: UUID, email: String): Boolean {
+        return dsl.execute(
+            "DELETE FROM node_client_inventory WHERE node_id = ? AND xray_email = ?",
+            nodeId,
+            email
+        ) > 0
+    }
+
     fun listByTelegramId(telegramId: Long): List<NodeClientInventoryEntity> {
         return dsl.fetch(
             """

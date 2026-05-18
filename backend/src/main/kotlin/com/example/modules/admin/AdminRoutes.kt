@@ -16,6 +16,7 @@ import io.ktor.server.auth.principal
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
+import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
@@ -344,6 +345,40 @@ fun Application.configureAdminRoutes(context: AppContext) {
                                 nodeId = node.id.toString(),
                                 email = email,
                                 totalBytes = totalBytes
+                            )
+                        )
+                    }
+
+                    delete("/{id}/clients/{email}") {
+                        val principal = call.principal<JWTPrincipal>()
+                            ?: throw ApiException(HttpStatusCode.Unauthorized, "UNAUTHORIZED", "Missing principal")
+                        ensureAdmin(principal)
+
+                        val nodeId = parseNodeId(call.parameters["id"])
+                        val email = call.parameters["email"]?.takeIf { it.isNotBlank() }
+                            ?: throw ApiException(HttpStatusCode.BadRequest, "INVALID_EMAIL", "Client email is required")
+                        val node = context.nodes.findById(nodeId)
+                            ?: throw ApiException(HttpStatusCode.NotFound, "NODE_NOT_FOUND", "Node not found")
+
+                        context.xray.removeUser(node, email)
+                        context.nodeClients.deleteByNodeAndEmail(node.id, email)
+                        val remainingClients = context.nodeClients.listByNode(node.id)
+
+                        context.audit.log(
+                            action = "node.client.delete",
+                            success = true,
+                            actorUserId = null,
+                            actorDeviceId = null,
+                            targetType = "node",
+                            targetId = node.id,
+                            detailsJson = "{\"email\":\"${email.replace("\"", "\\\"")}\"}",
+                            call = call
+                        )
+
+                        call.respond(
+                            NodeClientsResponse(
+                                nodeId = node.id.toString(),
+                                clients = remainingClients.map(::toNodeClientResponse)
                             )
                         )
                     }
@@ -694,7 +729,7 @@ private val adminPanelHtml = """
     </section>
   </main>
   <script>
-    const state = { token: localStorage.getItem("adminToken") || "", nodes: [], selectedNode: null, editingNodeId: null };
+    const state = { token: localStorage.getItem("adminToken") || "", nodes: [], selectedNode: null, selectedNodeName: "", editingNodeId: null };
     const el = (id) => document.getElementById(id);
     const gb = (bytes) => (Number(bytes || 0) / 1073741824).toFixed(2);
     const splitAlpn = (value) => value.split(",").map((item) => item.trim()).filter(Boolean);
@@ -864,6 +899,7 @@ private val adminPanelHtml = """
     }
     async function syncClients(nodeId, nodeName) {
       state.selectedNode = nodeId;
+      state.selectedNodeName = nodeName;
       el("clientsSection").classList.remove("hidden");
       el("clientsTitle").textContent = "Node clients: " + nodeName;
       setMessage("clientsMessage", "Syncing...");
@@ -877,7 +913,7 @@ private val adminPanelHtml = """
         const tr = document.createElement("tr");
         const used = Number(client.upBytes || 0) + Number(client.downBytes || 0);
         tr.innerHTML =
-          "<td data-label='Email'>" + client.email + "</td>" +
+          "<td data-label='Email'>" + esc(client.email) + "</td>" +
           "<td data-label='Enabled'>" + client.enabled + "</td>" +
           "<td data-label='Total GB'><input data-field='totalGb' type='number' min='0' value='" + gb(client.totalBytes) + "'></td>" +
           "<td data-label='Used GB'>" + gb(used) + "</td>" +
@@ -885,7 +921,11 @@ private val adminPanelHtml = """
         const save = document.createElement("button");
         save.textContent = "Set limit";
         save.onclick = () => updateClientLimit(client.email, tr);
-        tr.querySelector(".actions").appendChild(save);
+        const remove = document.createElement("button");
+        remove.textContent = "Delete";
+        remove.className = "secondary";
+        remove.onclick = () => deleteClient(client.email);
+        tr.querySelector(".actions").append(save, remove);
         el("clientsBody").appendChild(tr);
       });
     }
@@ -896,6 +936,17 @@ private val adminPanelHtml = """
         body: JSON.stringify({ totalGb: Number(row.querySelector("[data-field=totalGb]").value) })
       });
       setMessage("clientsMessage", "Client limit updated", true);
+    }
+    async function deleteClient(email) {
+      if (!state.selectedNode) return;
+      if (!confirm("Delete client " + email + "?")) return;
+      setMessage("clientsMessage", "Deleting...");
+      const data = await request("/admin/nodes/" + state.selectedNode + "/clients/" + encodeURIComponent(email), {
+        method: "DELETE",
+        headers: headers()
+      });
+      renderClients(data.clients || []);
+      setMessage("clientsMessage", "Client deleted", true);
     }
     el("loginBtn").onclick = () => login().catch((error) => setMessage("loginMessage", error.message, false));
     el("loadBtn").onclick = () => loadNodes().catch((error) => setMessage("nodesMessage", error.message, false));

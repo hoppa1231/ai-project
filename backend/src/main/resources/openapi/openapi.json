@@ -279,6 +279,70 @@
         }
       }
     },
+    "/admin/nodes/{id}/clients": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "List node clients",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NodeClientsResponse" } } } },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/admin/nodes/{id}/clients/sync": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Sync node clients",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SyncNodeClientsResponse" } } } },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/admin/nodes/{id}/clients/{email}": {
+      "patch": {
+        "tags": ["Admin"],
+        "summary": "Update node client traffic limit",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "email", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PatchNodeClientRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PatchNodeClientResponse" } } } },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "delete": {
+        "tags": ["Admin"],
+        "summary": "Delete node client",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "email", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NodeClientsResponse" } } } },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
     "/admin/quota/grant": {
       "post": {
         "tags": ["Admin"],
@@ -594,6 +658,58 @@
           "status": { "type": "string", "nullable": true },
           "weight": { "type": "integer", "nullable": true },
           "maxClients": { "type": "integer", "nullable": true }
+        }
+      },
+      "NodeClientInventoryResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "nodeId": { "type": "string", "format": "uuid" },
+          "inboundId": { "type": "integer" },
+          "inboundRemark": { "type": "string" },
+          "inboundTag": { "type": "string" },
+          "email": { "type": "string" },
+          "uuid": { "type": "string", "nullable": true },
+          "flow": { "type": "string", "nullable": true },
+          "enabled": { "type": "boolean" },
+          "totalBytes": { "type": "integer", "format": "int64" },
+          "upBytes": { "type": "integer", "format": "int64" },
+          "downBytes": { "type": "integer", "format": "int64" },
+          "expiryTime": { "type": "integer", "format": "int64" },
+          "limitIp": { "type": "integer" },
+          "subId": { "type": "string", "nullable": true },
+          "telegramId": { "type": "integer", "format": "int64", "nullable": true },
+          "lastSyncedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "NodeClientsResponse": {
+        "type": "object",
+        "properties": {
+          "nodeId": { "type": "string", "format": "uuid" },
+          "clients": { "type": "array", "items": { "$ref": "#/components/schemas/NodeClientInventoryResponse" } }
+        }
+      },
+      "SyncNodeClientsResponse": {
+        "type": "object",
+        "properties": {
+          "nodeId": { "type": "string", "format": "uuid" },
+          "synced": { "type": "integer" },
+          "clients": { "type": "array", "items": { "$ref": "#/components/schemas/NodeClientInventoryResponse" } }
+        }
+      },
+      "PatchNodeClientRequest": {
+        "type": "object",
+        "properties": {
+          "totalGb": { "type": "integer", "format": "int64", "nullable": true },
+          "totalBytes": { "type": "integer", "format": "int64", "nullable": true }
+        }
+      },
+      "PatchNodeClientResponse": {
+        "type": "object",
+        "properties": {
+          "nodeId": { "type": "string", "format": "uuid" },
+          "email": { "type": "string" },
+          "totalBytes": { "type": "integer", "format": "int64" }
         }
       },
       "GrantQuotaRequest": {
