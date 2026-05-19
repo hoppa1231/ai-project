@@ -3,6 +3,8 @@ package com.example.modules.admin
 import com.example.common.ApiException
 import com.example.config.AppContext
 import com.example.db.NodeEntity
+import com.example.db.UserEntity
+import com.example.db.repo.DeviceDetailsEntity
 import com.example.db.repo.CreateNodeParams
 import com.example.db.repo.UpdateNodeParams
 import com.example.security.requireRole
@@ -158,6 +160,34 @@ data class PatchNodeClientResponse(
     val nodeId: String,
     val email: String,
     val totalBytes: Long
+)
+
+@Serializable
+data class AdminUserResponse(
+    val id: String,
+    val email: String,
+    val role: String,
+    val status: String,
+    val accountType: String
+)
+
+@Serializable
+data class AdminDeviceResponse(
+    val id: String,
+    val userId: String,
+    val fingerprintHash: String,
+    val deviceName: String,
+    val platform: String,
+    val appVersion: String?,
+    val status: String,
+    val boundAt: String,
+    val lastSeenAt: String?
+)
+
+@Serializable
+data class AdminUserDevicesResponse(
+    val user: AdminUserResponse,
+    val devices: List<AdminDeviceResponse>
 )
 
 fun Application.configureAdminRoutes(context: AppContext) {
@@ -452,6 +482,23 @@ fun Application.configureAdminRoutes(context: AppContext) {
                         )
                     }
                 }
+
+                get("/users/devices") {
+                    val principal = call.principal<JWTPrincipal>()
+                        ?: throw ApiException(HttpStatusCode.Unauthorized, "UNAUTHORIZED", "Missing principal")
+                    ensureAdmin(principal)
+
+                    val email = call.request.queryParameters["email"]?.trim()?.takeIf { it.isNotBlank() }
+                        ?: throw ApiException(HttpStatusCode.BadRequest, "EMAIL_REQUIRED", "email is required")
+                    val user = context.users.findByEmail(email)
+                        ?: throw ApiException(HttpStatusCode.NotFound, "USER_NOT_FOUND", "User not found")
+                    call.respond(
+                        AdminUserDevicesResponse(
+                            user = toAdminUserResponse(user),
+                            devices = context.devices.listByUser(user.id).map(::toAdminDeviceResponse)
+                        )
+                    )
+                }
             }
         }
     }
@@ -508,6 +555,30 @@ private fun toNodeClientResponse(client: com.example.db.NodeClientInventoryEntit
         subId = client.subId,
         telegramId = client.telegramId,
         lastSyncedAt = client.lastSyncedAt.toString()
+    )
+}
+
+private fun toAdminUserResponse(user: UserEntity): AdminUserResponse {
+    return AdminUserResponse(
+        id = user.id.toString(),
+        email = user.email,
+        role = user.role,
+        status = user.status,
+        accountType = user.accountType
+    )
+}
+
+private fun toAdminDeviceResponse(device: DeviceDetailsEntity): AdminDeviceResponse {
+    return AdminDeviceResponse(
+        id = device.id.toString(),
+        userId = device.userId.toString(),
+        fingerprintHash = device.fingerprintHash,
+        deviceName = device.deviceName,
+        platform = device.platform,
+        appVersion = device.appVersion,
+        status = device.status,
+        boundAt = device.boundAt.toString(),
+        lastSeenAt = device.lastSeenAt?.toString()
     )
 }
 
@@ -728,7 +799,7 @@ private val adminPanelHtml = """
             <option value="CRITICAL">CRITICAL</option>
           </select>
         </label>
-        <label>User id (optional)<input id="noticeUserId"></label>
+        <label>User email (optional)<input id="noticeEmail" type="email"></label>
         <label>Device id (optional)<input id="noticeDeviceId"></label>
         <label>TTL hours (optional)<input id="noticeTtlHours" type="number" min="1"></label>
       </div>
@@ -737,6 +808,21 @@ private val adminPanelHtml = """
         <button id="sendNoticeBtn">Send notification</button>
       </div>
       <div class="message" id="noticeMessage"></div>
+    </section>
+
+    <section>
+      <h2>User devices</h2>
+      <div class="row">
+        <label>User email<input id="devicesEmail" type="email"></label>
+        <button id="loadDevicesBtn">Load devices</button>
+      </div>
+      <div class="message" id="devicesMessage"></div>
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Platform</th><th>App</th><th>Status</th><th>Device ID</th><th>Last seen</th></tr>
+        </thead>
+        <tbody id="devicesBody"></tbody>
+      </table>
     </section>
 
     <section id="clientsSection" class="hidden">
@@ -925,11 +1011,34 @@ private val adminPanelHtml = """
         body: el("noticeBody").value,
         severity: el("noticeSeverity").value
       };
-      if (el("noticeUserId").value) payload.userId = el("noticeUserId").value;
+      if (el("noticeEmail").value) payload.email = el("noticeEmail").value;
       if (el("noticeDeviceId").value) payload.deviceId = el("noticeDeviceId").value;
       if (el("noticeTtlHours").value) payload.ttlHours = Number(el("noticeTtlHours").value);
       const data = await request("/admin/notifications", { method: "POST", headers: headers(), body: JSON.stringify(payload) });
       setMessage("noticeMessage", "Sent: " + data.id, true);
+    }
+    async function loadUserDevices() {
+      const email = el("devicesEmail").value.trim();
+      if (!email) throw new Error("Email is required");
+      setMessage("devicesMessage", "Loading...");
+      const data = await request("/admin/users/devices?email=" + encodeURIComponent(email), { headers: headers() });
+      renderUserDevices(data.devices || []);
+      const user = data.user || {};
+      setMessage("devicesMessage", "User: " + esc(user.email) + " · " + esc(user.accountType) + " · devices: " + (data.devices || []).length, true);
+    }
+    function renderUserDevices(devices) {
+      el("devicesBody").innerHTML = "";
+      devices.forEach((device) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML =
+          "<td data-label='Name'>" + esc(device.deviceName) + "</td>" +
+          "<td data-label='Platform'>" + esc(device.platform) + "</td>" +
+          "<td data-label='App'>" + esc(device.appVersion || "") + "</td>" +
+          "<td data-label='Status'>" + esc(device.status) + "</td>" +
+          "<td data-label='Device ID'><code>" + esc(device.id) + "</code></td>" +
+          "<td data-label='Last seen'>" + esc(device.lastSeenAt || device.boundAt || "") + "</td>";
+        el("devicesBody").appendChild(tr);
+      });
     }
     async function syncClients(nodeId, nodeName) {
       state.selectedNode = nodeId;
@@ -994,6 +1103,7 @@ private val adminPanelHtml = """
     el("cancelEditNodeBtn").onclick = cancelEditNode;
     el("grantQuotaBtn").onclick = () => grantQuota().catch((error) => setMessage("quotaMessage", error.message, false));
     el("sendNoticeBtn").onclick = () => sendNotice().catch((error) => setMessage("noticeMessage", error.message, false));
+    el("loadDevicesBtn").onclick = () => loadUserDevices().catch((error) => setMessage("devicesMessage", error.message, false));
     updateSession();
     if (state.token) loadNodes().catch((error) => setMessage("nodesMessage", error.message, false));
   </script>

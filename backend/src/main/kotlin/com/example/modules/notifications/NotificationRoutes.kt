@@ -44,6 +44,7 @@ data class SendNotificationRequest(
     val title: String,
     val body: String,
     val severity: String = "INFO",
+    val email: String? = null,
     val userId: String? = null,
     val deviceId: String? = null,
     val ttlHours: Long? = null
@@ -95,13 +96,22 @@ fun Application.configureNotificationRoutes(context: AppContext) {
                     throw ApiException(HttpStatusCode.BadRequest, "INVALID_NOTIFICATION", "title and body are required")
                 }
 
-                val userId = body.userId?.let { parseUuid(it, "INVALID_USER_ID") }
+                val userFromEmail = body.email?.trim()?.takeIf { it.isNotBlank() }?.let { email ->
+                    context.users.findByEmail(email)
+                        ?: throw ApiException(HttpStatusCode.NotFound, "USER_NOT_FOUND", "User not found")
+                }
+                val userFromId = body.userId?.let { rawUserId ->
+                    val parsed = parseUuid(rawUserId, "INVALID_USER_ID")
+                    context.users.findById(parsed)
+                        ?: throw ApiException(HttpStatusCode.NotFound, "USER_NOT_FOUND", "User not found")
+                }
+                if (userFromEmail != null && userFromId != null && userFromEmail.id != userFromId.id) {
+                    throw ApiException(HttpStatusCode.BadRequest, "USER_MISMATCH", "email and userId point to different users")
+                }
+                val userId = userFromEmail?.id ?: userFromId?.id
                 val deviceId = body.deviceId?.let { parseUuid(it, "INVALID_DEVICE_ID") }
                 if (deviceId != null && userId == null) {
-                    throw ApiException(HttpStatusCode.BadRequest, "USER_REQUIRED", "userId is required with deviceId")
-                }
-                if (userId != null && context.users.findById(userId) == null) {
-                    throw ApiException(HttpStatusCode.NotFound, "USER_NOT_FOUND", "User not found")
+                    throw ApiException(HttpStatusCode.BadRequest, "USER_REQUIRED", "email is required with deviceId")
                 }
                 if (deviceId != null && context.devices.findByIdForUser(deviceId, userId!!) == null) {
                     throw ApiException(HttpStatusCode.NotFound, "DEVICE_NOT_FOUND", "Device not found")

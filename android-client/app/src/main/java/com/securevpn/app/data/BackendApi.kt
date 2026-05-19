@@ -45,6 +45,12 @@ class BackendApi(
 
     suspend fun loadCurrentQuota(): QuotaStatus = loadQuota()
 
+    suspend fun loadCurrentNotifications(): List<ServerNotification> = loadNotifications()
+
+    suspend fun markNotificationRead(notificationId: String) {
+        authorizedRequest(path = "/notifications/$notificationId/read", method = "POST", body = "{}")
+    }
+
     suspend fun updateRoutingPolicy(policy: RoutingPolicy): RoutingPolicy {
         val rules = JSONArray()
         policy.routeRules.forEach { rule ->

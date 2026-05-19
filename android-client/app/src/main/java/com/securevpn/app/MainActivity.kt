@@ -28,7 +28,11 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +55,7 @@ import com.securevpn.app.data.BackendApi
 import com.securevpn.app.data.QuotaStatus
 import com.securevpn.app.data.RouteRule
 import com.securevpn.app.data.RoutingPolicy
+import com.securevpn.app.data.ServerNotification
 import com.securevpn.app.data.TelegramAuthData
 import com.securevpn.app.ui.theme.SecureVpnTheme
 import com.securevpn.app.vpn.SingBoxVpnService
@@ -131,6 +136,7 @@ fun SovietVpnApp(
     var routingDraft by remember { mutableStateOf(routingPolicy) }
     var routingNotice by remember { mutableStateOf<String?>(null) }
     var quotaStatus by remember { mutableStateOf<QuotaStatus?>(null) }
+    var serverNotification by remember { mutableStateOf<ServerNotification?>(null) }
     var showingTelegramConfigs by remember { mutableStateOf(telegramAccount != null) }
     var userTouchedConnection by remember { mutableStateOf(false) }
     var trafficBytes by rememberSaveable { mutableStateOf(0L) }
@@ -231,6 +237,13 @@ fun SovietVpnApp(
 
     fun refreshBootstrap() {
         scope.launch {
+            runCatching { api.loadCurrentQuota() }
+                .onSuccess { quotaStatus = it }
+            runCatching { api.loadCurrentNotifications() }
+                .onSuccess { notifications ->
+                    serverNotification = notifications.firstOrNull()
+                }
+
             val linkedAccount = telegramAccount
             if (linkedAccount != null) {
                 runCatching { api.loadTelegramConfigs() }
@@ -267,12 +280,11 @@ fun SovietVpnApp(
                     showingTelegramConfigs = false
                     serverNodes = apiNodes
                     quotaStatus = bootstrap.quota
-                    val serverNotice = bootstrap.notifications.firstOrNull()?.displayText?.take(90)
+                    serverNotification = bootstrap.notifications.firstOrNull() ?: serverNotification
                     if (apiNodes.none { it.id == selectedServerId }) {
                         selectedServerId = apiNodes.firstOrNull()?.id ?: selectedServerId
                     }
                     if (!userTouchedConnection && !serviceControlledState) state = LinkState.Off
-                    apiNotice = serverNotice
                 }
                 .onFailure { error ->
                     if (!userTouchedConnection && !serviceControlledState) state = LinkState.Off
@@ -311,10 +323,12 @@ fun SovietVpnApp(
     LaunchedEffect(Unit) {
         while (true) {
             delay(60_000)
-            if (!showingTelegramConfigs) {
-                runCatching { api.loadCurrentQuota() }
-                    .onSuccess { quotaStatus = it }
-            }
+            runCatching { api.loadCurrentQuota() }
+                .onSuccess { quotaStatus = it }
+            runCatching { api.loadCurrentNotifications() }
+                .onSuccess { notifications ->
+                    serverNotification = notifications.firstOrNull()
+                }
         }
     }
 
@@ -374,13 +388,9 @@ fun SovietVpnApp(
     }
 
     fun quotaTotalBytes(): Long {
-        val quotaBytes = quotaStatus?.totalBytes ?: 0L
-        val telegramBytes = if (showingTelegramConfigs) {
-            selectedServer.totalBytes
-        } else {
-            0L
-        }
-        return maxOf(quotaBytes, telegramBytes, runtimeQuotaTotalBytes)
+        quotaStatus?.totalBytes?.takeIf { it > 0L }?.let { return it }
+        val configBytes = if (showingTelegramConfigs) selectedServer.totalBytes else 0L
+        return maxOf(configBytes, runtimeQuotaTotalBytes)
     }
 
     suspend fun resolveVlessUri(forceNew: Boolean = false): String {
@@ -753,6 +763,38 @@ fun SovietVpnApp(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color.Black.copy(alpha = offOverlayAlpha))
+                )
+            }
+
+            serverNotification?.let { notification ->
+                AlertDialog(
+                    onDismissRequest = {
+                        val dismissed = notification
+                        serverNotification = null
+                        scope.launch { runCatching { api.markNotificationRead(dismissed.id) } }
+                    },
+                    title = { Text(notification.title.ifBlank { "Сообщение от сервера" }) },
+                    text = { Text(notification.body.ifBlank { notification.displayText }) },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                val dismissed = notification
+                                serverNotification = null
+                                scope.launch { runCatching { api.markNotificationRead(dismissed.id) } }
+                            }
+                        ) {
+                            Text("Понятно")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = {
+                                serverNotification = null
+                            }
+                        ) {
+                            Text("Позже")
+                        }
+                    }
                 )
             }
 
