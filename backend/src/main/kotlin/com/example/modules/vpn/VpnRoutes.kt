@@ -305,6 +305,7 @@ fun Application.configureVpnRoutes(context: AppContext) {
                                     uuid = vlessUuid,
                                     flow = flow,
                                     expiresAt = expiresAt,
+                                    trafficLimitBytes = quota.remainingBytes,
                                     telegramId = telegramId
                                 )
                             )

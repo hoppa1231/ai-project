@@ -717,6 +717,28 @@ private val adminPanelHtml = """
       <div class="message" id="quotaMessage"></div>
     </section>
 
+    <section>
+      <h2>Send notification</h2>
+      <div class="grid">
+        <label>Title<input id="noticeTitle" value="Сообщение от сервера"></label>
+        <label>Severity
+          <select id="noticeSeverity">
+            <option value="INFO">INFO</option>
+            <option value="WARNING">WARNING</option>
+            <option value="CRITICAL">CRITICAL</option>
+          </select>
+        </label>
+        <label>User id (optional)<input id="noticeUserId"></label>
+        <label>Device id (optional)<input id="noticeDeviceId"></label>
+        <label>TTL hours (optional)<input id="noticeTtlHours" type="number" min="1"></label>
+      </div>
+      <label>Message<textarea id="noticeBody" rows="3"></textarea></label>
+      <div class="row">
+        <button id="sendNoticeBtn">Send notification</button>
+      </div>
+      <div class="message" id="noticeMessage"></div>
+    </section>
+
     <section id="clientsSection" class="hidden">
       <h2 id="clientsTitle">Node clients</h2>
       <table>
@@ -897,6 +919,18 @@ private val adminPanelHtml = """
       const data = await request("/admin/quota/grant", { method: "POST", headers: headers(), body: JSON.stringify(payload) });
       setMessage("quotaMessage", "Granted. Remaining: " + data.remainingGb.toFixed(2) + " GB", true);
     }
+    async function sendNotice() {
+      const payload = {
+        title: el("noticeTitle").value,
+        body: el("noticeBody").value,
+        severity: el("noticeSeverity").value
+      };
+      if (el("noticeUserId").value) payload.userId = el("noticeUserId").value;
+      if (el("noticeDeviceId").value) payload.deviceId = el("noticeDeviceId").value;
+      if (el("noticeTtlHours").value) payload.ttlHours = Number(el("noticeTtlHours").value);
+      const data = await request("/admin/notifications", { method: "POST", headers: headers(), body: JSON.stringify(payload) });
+      setMessage("noticeMessage", "Sent: " + data.id, true);
+    }
     async function syncClients(nodeId, nodeName) {
       state.selectedNode = nodeId;
       state.selectedNodeName = nodeName;
@@ -959,6 +993,7 @@ private val adminPanelHtml = """
     el("saveEditedNodeBtn").onclick = () => saveEditedNode().catch((error) => setMessage("editNodeMessage", error.message, false));
     el("cancelEditNodeBtn").onclick = cancelEditNode;
     el("grantQuotaBtn").onclick = () => grantQuota().catch((error) => setMessage("quotaMessage", error.message, false));
+    el("sendNoticeBtn").onclick = () => sendNotice().catch((error) => setMessage("noticeMessage", error.message, false));
     updateSession();
     if (state.token) loadNodes().catch((error) => setMessage("nodesMessage", error.message, false));
   </script>

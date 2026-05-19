@@ -4,6 +4,7 @@ import com.example.agent.AgentXrayAdminClient
 import com.example.db.DatabaseBundle
 import com.example.db.DatabaseFactory
 import com.example.db.repo.AuditRepository
+import com.example.db.repo.AppNotificationRepository
 import com.example.db.repo.DeviceRepository
 import com.example.db.repo.NodeRepository
 import com.example.db.repo.NodeClientInventoryRepository
@@ -32,6 +33,7 @@ class AppContext(
     val refreshTokens: RefreshTokenRepository,
     val vpn: VpnRepository,
     val audit: AuditRepository,
+    val notifications: AppNotificationRepository,
     val jwt: JwtService,
     val passwordHasher: PasswordHasher,
     val rateLimit: RateLimitService,
@@ -63,6 +65,7 @@ fun buildContext(config: AppConfig): AppContext {
         refreshTokens = RefreshTokenRepository(db.dsl),
         vpn = VpnRepository(db.dsl),
         audit = AuditRepository(db.dsl),
+        notifications = AppNotificationRepository(db.dsl),
         jwt = JwtService(config.jwt),
         passwordHasher = PasswordHasher(),
         rateLimit = RateLimitService(),

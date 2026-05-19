@@ -35,9 +35,12 @@ Then run backend locally:
 - `GET /policy/current`
 - `PUT /policy/current`
 - `GET /quota/current`
+- `GET /notifications`
+- `POST /notifications/{id}/read`
 - `POST /admin/nodes`
 - `PATCH /admin/nodes/{id}`
 - `POST /admin/quota/grant`
+- `POST /admin/notifications`
 - `GET /health`
 - `GET /openapi.json`
 - `GET /swagger`
@@ -46,4 +49,5 @@ Then run backend locally:
 
 - Guest user can consume free monthly quota without registration.
 - Additional purchased quota can be granted only to `REGISTERED` users.
+- Node client sync records Xray traffic deltas into quota usage, so config rotation does not reset monthly usage.
 - Current Xray integration mode is `stub`; `grpc` mode is scaffolded.

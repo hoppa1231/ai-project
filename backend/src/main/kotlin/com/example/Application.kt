@@ -13,6 +13,7 @@ import com.example.modules.devices.configureDeviceRoutes
 import com.example.modules.health.configureHealthRoutes
 import com.example.modules.health.startNodeHealthWorker
 import com.example.modules.nodes.configureNodeRoutes
+import com.example.modules.notifications.configureNotificationRoutes
 import com.example.modules.openapi.configureOpenApiRoutes
 import com.example.modules.policy.configurePolicyRoutes
 import com.example.modules.quota.configureQuotaRoutes
@@ -97,6 +98,7 @@ fun Application.module() {
     configureVpnRoutes(context)
     configurePolicyRoutes(context)
     configureQuotaRoutes(context)
+    configureNotificationRoutes(context)
     configureAdminRoutes(context)
     configureHealthRoutes(context)
     configureOpenApiRoutes()

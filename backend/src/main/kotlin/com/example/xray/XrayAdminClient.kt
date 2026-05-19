@@ -9,6 +9,7 @@ data class XrayUser(
     val uuid: UUID,
     val flow: String?,
     val expiresAt: Instant,
+    val trafficLimitBytes: Long = 0,
     val telegramId: Long? = null
 )
 

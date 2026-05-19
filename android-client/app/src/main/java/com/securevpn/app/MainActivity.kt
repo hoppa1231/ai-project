@@ -267,11 +267,12 @@ fun SovietVpnApp(
                     showingTelegramConfigs = false
                     serverNodes = apiNodes
                     quotaStatus = bootstrap.quota
+                    val serverNotice = bootstrap.notifications.firstOrNull()?.displayText?.take(90)
                     if (apiNodes.none { it.id == selectedServerId }) {
                         selectedServerId = apiNodes.firstOrNull()?.id ?: selectedServerId
                     }
                     if (!userTouchedConnection && !serviceControlledState) state = LinkState.Off
-                    apiNotice = null
+                    apiNotice = serverNotice
                 }
                 .onFailure { error ->
                     if (!userTouchedConnection && !serviceControlledState) state = LinkState.Off
@@ -305,6 +306,16 @@ fun SovietVpnApp(
         }
         refreshBootstrap()
         refreshRoutingPolicy()
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000)
+            if (!showingTelegramConfigs) {
+                runCatching { api.loadCurrentQuota() }
+                    .onSuccess { quotaStatus = it }
+            }
+        }
     }
 
     fun completeTelegramLogin(payload: TelegramAuthData) {

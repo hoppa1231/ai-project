@@ -36,6 +36,15 @@ class QuotaRepository(private val dsl: DSLContext) {
             WHERE c.user_id = ?
               AND ts.period_start >= ?::timestamptz
               AND ts.period_start < ?::timestamptz
+              AND (
+                NOT EXISTS (
+                  SELECT 1 FROM issued_config_hops h WHERE h.client_id = c.id
+                )
+                OR EXISTS (
+                  SELECT 1 FROM issued_config_hops h
+                  WHERE h.client_id = c.id AND h.role = 'EXIT'
+                )
+              )
             """.trimIndent(),
             userId,
             cycleStart.atStartOfDay().atOffset(ZoneOffset.UTC),

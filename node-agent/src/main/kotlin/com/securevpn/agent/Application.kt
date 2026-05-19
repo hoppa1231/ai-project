@@ -64,6 +64,7 @@ fun Application.module() {
                     id = body.uuid,
                     email = body.email,
                     flow = body.flow.orEmpty(),
+                    totalGB = body.totalBytes,
                     expiryTime = body.expiresAt?.let { Instant.parse(it).toEpochMilli() } ?: 0L,
                     tgId = body.tgId.orEmpty()
                 )
@@ -107,6 +108,7 @@ data class AddUserRequest(
     val uuid: String,
     val flow: String? = null,
     val expiresAt: String? = null,
+    val totalBytes: Long = 0,
     val tgId: String? = null
 )
 

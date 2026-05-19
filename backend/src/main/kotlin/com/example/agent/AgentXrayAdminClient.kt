@@ -34,6 +34,7 @@ class AgentXrayAdminClient(
                     uuid = user.uuid.toString(),
                     flow = user.flow,
                     expiresAt = user.expiresAt.toString(),
+                    totalBytes = user.trafficLimitBytes,
                     tgId = user.telegramId?.toString()
                 )
             )
@@ -137,6 +138,7 @@ private data class AgentAddUserRequest(
     val uuid: String,
     val flow: String?,
     val expiresAt: String,
+    val totalBytes: Long = 0,
     val tgId: String? = null
 )
 

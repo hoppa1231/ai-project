@@ -23,7 +23,13 @@ class BackendApi(
         ensureSession()
         val nodes = loadNodes()
         val quota = runCatching { loadQuota() }.getOrNull()
-        return VpnBootstrap(nodes = nodes, quota = quota, activeConfigId = activeConfigId)
+        val notifications = runCatching { loadNotifications() }.getOrDefault(emptyList())
+        return VpnBootstrap(
+            nodes = nodes,
+            quota = quota,
+            notifications = notifications,
+            activeConfigId = activeConfigId
+        )
     }
 
     suspend fun loadRoutingPolicy(): RoutingPolicy {
@@ -36,6 +42,8 @@ class BackendApi(
         return cached?.let { runCatching { parseRoutingPolicy(it) }.getOrNull() }
             ?: RoutingPolicy.default()
     }
+
+    suspend fun loadCurrentQuota(): QuotaStatus = loadQuota()
 
     suspend fun updateRoutingPolicy(policy: RoutingPolicy): RoutingPolicy {
         val rules = JSONArray()
@@ -266,6 +274,24 @@ class BackendApi(
         )
     }
 
+    private suspend fun loadNotifications(): List<ServerNotification> {
+        val response = authorizedRequest(path = "/notifications")
+        val items = JSONObject(response).optJSONArray("notifications") ?: JSONArray()
+        return buildList {
+            for (index in 0 until items.length()) {
+                val item = items.getJSONObject(index)
+                add(
+                    ServerNotification(
+                        id = item.getString("id"),
+                        title = item.optString("title", "Сообщение"),
+                        body = item.optString("body", ""),
+                        severity = item.optString("severity", "INFO")
+                    )
+                )
+            }
+        }
+    }
+
     private suspend fun authorizedRequest(
         path: String,
         method: String = "GET",
@@ -488,8 +514,19 @@ class BackendApi(
 data class VpnBootstrap(
     val nodes: List<VpnNode>,
     val quota: QuotaStatus?,
+    val notifications: List<ServerNotification>,
     val activeConfigId: String?
 )
+
+data class ServerNotification(
+    val id: String,
+    val title: String,
+    val body: String,
+    val severity: String
+) {
+    val displayText: String
+        get() = listOf(title, body).filter { it.isNotBlank() }.joinToString(": ")
+}
 
 data class VpnNode(
     val id: String,

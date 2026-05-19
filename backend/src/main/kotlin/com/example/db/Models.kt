@@ -163,3 +163,15 @@ data class QuotaSnapshot(
     val usedBytes: Long,
     val remainingBytes: Long
 )
+
+data class AppNotificationEntity(
+    val id: UUID,
+    val targetUserId: UUID?,
+    val targetDeviceId: UUID?,
+    val title: String,
+    val body: String,
+    val severity: String,
+    val startsAt: Instant,
+    val expiresAt: Instant?,
+    val createdAt: Instant
+)
