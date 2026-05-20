@@ -133,6 +133,9 @@ data class NodeClientInventoryResponse(
     val limitIp: Int,
     val subId: String?,
     val telegramId: Long?,
+    val controlPlaneClientId: String?,
+    val userId: String?,
+    val deviceId: String?,
     val lastSyncedAt: String
 )
 
@@ -300,7 +303,7 @@ fun Application.configureAdminRoutes(context: AppContext) {
                         call.respond(
                             NodeClientsResponse(
                                 nodeId = nodeId.toString(),
-                                clients = context.nodeClients.listByNode(nodeId).map(::toNodeClientResponse)
+                                clients = context.nodeClients.listByNode(nodeId).map { toNodeClientResponse(context, it) }
                             )
                         )
                     }
@@ -332,7 +335,7 @@ fun Application.configureAdminRoutes(context: AppContext) {
                             SyncNodeClientsResponse(
                                 nodeId = node.id.toString(),
                                 synced = clients.size,
-                                clients = stored.map(::toNodeClientResponse)
+                                clients = stored.map { toNodeClientResponse(context, it) }
                             )
                         )
                     }
@@ -408,7 +411,7 @@ fun Application.configureAdminRoutes(context: AppContext) {
                         call.respond(
                             NodeClientsResponse(
                                 nodeId = node.id.toString(),
-                                clients = remainingClients.map(::toNodeClientResponse)
+                                clients = remainingClients.map { toNodeClientResponse(context, it) }
                             )
                         )
                     }
@@ -536,7 +539,11 @@ private fun toAdminNodeResponse(node: NodeEntity): AdminNodeResponse {
     )
 }
 
-private fun toNodeClientResponse(client: com.example.db.NodeClientInventoryEntity): NodeClientInventoryResponse {
+private fun toNodeClientResponse(
+    context: AppContext,
+    client: com.example.db.NodeClientInventoryEntity
+): NodeClientInventoryResponse {
+    val controlPlaneClient = context.vpn.findClientByNodeAndEmail(client.nodeId, client.email)
     return NodeClientInventoryResponse(
         id = client.id.toString(),
         nodeId = client.nodeId.toString(),
@@ -554,6 +561,9 @@ private fun toNodeClientResponse(client: com.example.db.NodeClientInventoryEntit
         limitIp = client.limitIp,
         subId = client.subId,
         telegramId = client.telegramId,
+        controlPlaneClientId = controlPlaneClient?.id?.toString(),
+        userId = controlPlaneClient?.userId?.toString(),
+        deviceId = controlPlaneClient?.deviceId?.toString(),
         lastSyncedAt = client.lastSyncedAt.toString()
     )
 }
@@ -829,7 +839,7 @@ private val adminPanelHtml = """
       <h2 id="clientsTitle">Node clients</h2>
       <table>
         <thead>
-          <tr><th>Email</th><th>Enabled</th><th>Total GB</th><th>Used GB</th><th>Actions</th></tr>
+          <tr><th>Email</th><th>Device ID</th><th>User ID</th><th>Enabled</th><th>Total GB</th><th>Used GB</th><th>Actions</th></tr>
         </thead>
         <tbody id="clientsBody"></tbody>
       </table>
@@ -1057,6 +1067,8 @@ private val adminPanelHtml = """
         const used = Number(client.upBytes || 0) + Number(client.downBytes || 0);
         tr.innerHTML =
           "<td data-label='Email'>" + esc(client.email) + "</td>" +
+          "<td data-label='Device ID'><code>" + esc(client.deviceId || "") + "</code></td>" +
+          "<td data-label='User ID'><code>" + esc(client.userId || "") + "</code></td>" +
           "<td data-label='Enabled'>" + client.enabled + "</td>" +
           "<td data-label='Total GB'><input data-field='totalGb' type='number' min='0' value='" + gb(client.totalBytes) + "'></td>" +
           "<td data-label='Used GB'>" + gb(used) + "</td>" +

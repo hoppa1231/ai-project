@@ -248,6 +248,20 @@ class VpnRepository(private val dsl: DSLContext) {
         return mapClient(rec)
     }
 
+    fun findClientByNodeAndEmail(nodeId: UUID, email: String): ClientEntity? {
+        val rec = dsl.fetchOne(
+            """
+            SELECT id, user_id, device_id, node_id, xray_email, vless_uuid, status, flow
+            FROM clients
+            WHERE node_id = ? AND xray_email = ?
+            """.trimIndent(),
+            nodeId,
+            email
+        ) ?: return null
+
+        return mapClient(rec)
+    }
+
     fun markRevoking(configId: UUID) {
         dsl.execute(
             "UPDATE issued_configs SET status = 'REVOKING' WHERE id = ? AND status = 'ISSUED'",
