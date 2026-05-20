@@ -52,6 +52,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Build backend image
+        run: |
+          docker build -t "${COMPOSE_PROJECT_NAME}_backend:latest" backend
+
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
@@ -72,6 +76,13 @@ jobs:
           | ssh -T -i ~/.ssh/moscow -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
               "mkdir -p '$DEPLOY_ROOT' && tar -xzf - -C '$DEPLOY_ROOT'"
 
+      - name: Upload backend image
+        run: |
+          docker save "${COMPOSE_PROJECT_NAME}_backend:latest" \
+          | gzip -1 \
+          | ssh -T -i ~/.ssh/moscow -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+              "gunzip | docker load"
+
       - name: Restart backend
         run: |
           DEPLOY_ROOT="${DEPLOY_PATH%/backend}"
@@ -88,7 +99,7 @@ jobs:
             echo "Docker Compose is not installed. Install docker-compose-plugin or docker-compose." >&2
             exit 1
           fi
-          $compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.prod.yml up -d --build --remove-orphans
+          $compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.prod.yml up -d --no-build --remove-orphans
           for attempt in $(seq 1 30); do
             if curl -fsS --max-time 5 http://127.0.0.1:8080/health; then
               break
