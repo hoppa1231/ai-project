@@ -189,7 +189,9 @@ data class AdminDeviceResponse(
 
 @Serializable
 data class AdminUserDevicesResponse(
-    val user: AdminUserResponse,
+    val query: String,
+    val matchedBy: String,
+    val user: AdminUserResponse?,
     val devices: List<AdminDeviceResponse>
 )
 
@@ -491,14 +493,20 @@ fun Application.configureAdminRoutes(context: AppContext) {
                         ?: throw ApiException(HttpStatusCode.Unauthorized, "UNAUTHORIZED", "Missing principal")
                     ensureAdmin(principal)
 
-                    val email = call.request.queryParameters["email"]?.trim()?.takeIf { it.isNotBlank() }
-                        ?: throw ApiException(HttpStatusCode.BadRequest, "EMAIL_REQUIRED", "email is required")
-                    val user = context.users.findByEmail(email)
-                        ?: throw ApiException(HttpStatusCode.NotFound, "USER_NOT_FOUND", "User not found")
+                    val query = call.request.queryParameters["email"]?.trim()?.takeIf { it.isNotBlank() }
+                        ?: throw ApiException(HttpStatusCode.BadRequest, "EMAIL_REQUIRED", "email or config email is required")
+                    val resolved = resolveUserDevices(context, query)
+                        ?: throw ApiException(
+                            HttpStatusCode.NotFound,
+                            "USER_NOT_FOUND",
+                            "No user or control-plane device found for this value"
+                        )
                     call.respond(
                         AdminUserDevicesResponse(
-                            user = toAdminUserResponse(user),
-                            devices = context.devices.listByUser(user.id).map(::toAdminDeviceResponse)
+                            query = query,
+                            matchedBy = resolved.matchedBy,
+                            user = resolved.user?.let(::toAdminUserResponse),
+                            devices = resolved.devices.map(::toAdminDeviceResponse)
                         )
                     )
                 }
@@ -590,6 +598,85 @@ private fun toAdminDeviceResponse(device: DeviceDetailsEntity): AdminDeviceRespo
         boundAt = device.boundAt.toString(),
         lastSeenAt = device.lastSeenAt?.toString()
     )
+}
+
+private data class ResolvedUserDevices(
+    val user: UserEntity?,
+    val devices: List<DeviceDetailsEntity>,
+    val matchedBy: String
+)
+
+private fun resolveUserDevices(context: AppContext, query: String): ResolvedUserDevices? {
+    val user = context.users.findByEmail(query)
+    if (user != null) {
+        return ResolvedUserDevices(
+            user = user,
+            devices = context.devices.listByUser(user.id),
+            matchedBy = "user_email"
+        )
+    }
+
+    val deviceById = runCatching { UUID.fromString(query) }.getOrNull()
+        ?.let { context.devices.findDetailsById(it) }
+    if (deviceById != null) {
+        return ResolvedUserDevices(
+            user = context.users.findById(deviceById.userId),
+            devices = listOf(deviceById),
+            matchedBy = "device_id"
+        )
+    }
+
+    val clients = context.vpn.findClientsByEmail(query)
+    if (clients.isNotEmpty()) {
+        val devices = clients.mapNotNull { context.devices.findDetailsById(it.deviceId) }
+            .distinctBy { it.id }
+        val owner = clients.firstNotNullOfOrNull { context.users.findById(it.userId) }
+        return ResolvedUserDevices(
+            user = owner,
+            devices = devices.ifEmpty { owner?.let { context.devices.listByUser(it.id) } ?: emptyList() },
+            matchedBy = "config_email"
+        )
+    }
+
+    val devicePrefix = configEmailDevicePrefix(query)
+    if (devicePrefix != null) {
+        val device = context.devices.findDetailsByCompactIdPrefix(devicePrefix)
+        if (device != null) {
+            return ResolvedUserDevices(
+                user = context.users.findById(device.userId),
+                devices = listOf(device),
+                matchedBy = "config_email_device_prefix"
+            )
+        }
+    }
+
+    val inventory = context.nodeClients.listByEmail(query)
+    val telegramUser = inventory.firstNotNullOfOrNull { item ->
+        item.telegramId?.let { context.users.findByTelegramId(it) }
+    }
+    if (telegramUser != null) {
+        return ResolvedUserDevices(
+            user = telegramUser,
+            devices = context.devices.listByUser(telegramUser.id),
+            matchedBy = "telegram_inventory_email"
+        )
+    }
+    if (inventory.isNotEmpty()) {
+        return ResolvedUserDevices(
+            user = null,
+            devices = emptyList(),
+            matchedBy = "inventory_email_unlinked"
+        )
+    }
+
+    return null
+}
+
+private fun configEmailDevicePrefix(email: String): String? {
+    return Regex("""(?:^|\.)d_([0-9a-fA-F]{8,32})(?:\.|$)""")
+        .find(email)
+        ?.groupValues
+        ?.getOrNull(1)
 }
 
 private fun ensureAdmin(principal: JWTPrincipal) {
@@ -823,7 +910,7 @@ private val adminPanelHtml = """
     <section>
       <h2>User devices</h2>
       <div class="row">
-        <label>User email<input id="devicesEmail" type="email"></label>
+        <label>User email or config email<input id="devicesEmail"></label>
         <button id="loadDevicesBtn">Load devices</button>
       </div>
       <div class="message" id="devicesMessage"></div>
@@ -839,7 +926,7 @@ private val adminPanelHtml = """
       <h2 id="clientsTitle">Node clients</h2>
       <table>
         <thead>
-          <tr><th>Email</th><th>Device ID</th><th>User ID</th><th>Enabled</th><th>Total GB</th><th>Used GB</th><th>Actions</th></tr>
+          <tr><th>Email</th><th>Enabled</th><th>Total GB</th><th>Used GB</th><th>Actions</th></tr>
         </thead>
         <tbody id="clientsBody"></tbody>
       </table>
@@ -1029,12 +1116,13 @@ private val adminPanelHtml = """
     }
     async function loadUserDevices() {
       const email = el("devicesEmail").value.trim();
-      if (!email) throw new Error("Email is required");
+      if (!email) throw new Error("Email or config email is required");
       setMessage("devicesMessage", "Loading...");
       const data = await request("/admin/users/devices?email=" + encodeURIComponent(email), { headers: headers() });
       renderUserDevices(data.devices || []);
       const user = data.user || {};
-      setMessage("devicesMessage", "User: " + esc(user.email) + " · " + esc(user.accountType) + " · devices: " + (data.devices || []).length, true);
+      const label = user.email ? ("User: " + esc(user.email) + " · " + esc(user.accountType)) : "Control-plane device";
+      setMessage("devicesMessage", label + " · matched by " + esc(data.matchedBy || "query") + " · devices: " + (data.devices || []).length, true);
     }
     function renderUserDevices(devices) {
       el("devicesBody").innerHTML = "";
@@ -1067,8 +1155,6 @@ private val adminPanelHtml = """
         const used = Number(client.upBytes || 0) + Number(client.downBytes || 0);
         tr.innerHTML =
           "<td data-label='Email'>" + esc(client.email) + "</td>" +
-          "<td data-label='Device ID'><code>" + esc(client.deviceId || "") + "</code></td>" +
-          "<td data-label='User ID'><code>" + esc(client.userId || "") + "</code></td>" +
           "<td data-label='Enabled'>" + client.enabled + "</td>" +
           "<td data-label='Total GB'><input data-field='totalGb' type='number' min='0' value='" + gb(client.totalBytes) + "'></td>" +
           "<td data-label='Used GB'>" + gb(used) + "</td>" +

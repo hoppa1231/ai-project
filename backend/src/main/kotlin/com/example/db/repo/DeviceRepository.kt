@@ -113,4 +113,46 @@ class DeviceRepository(private val dsl: DSLContext) {
             )
         }
     }
+
+    fun findDetailsById(deviceId: UUID): DeviceDetailsEntity? {
+        return dsl.fetchOne(
+            """
+            SELECT id, user_id, device_fingerprint_hash, device_name, platform, app_version,
+                   status, bound_at, last_seen_at
+            FROM devices
+            WHERE id = ?
+            """.trimIndent(),
+            deviceId
+        )?.let(::mapDetails)
+    }
+
+    fun findDetailsByCompactIdPrefix(prefix: String): DeviceDetailsEntity? {
+        val normalized = prefix.trim().lowercase().filter { it.isLetterOrDigit() }
+        if (normalized.length < 8) return null
+        return dsl.fetchOne(
+            """
+            SELECT id, user_id, device_fingerprint_hash, device_name, platform, app_version,
+                   status, bound_at, last_seen_at
+            FROM devices
+            WHERE replace(id::text, '-', '') LIKE ?
+            ORDER BY last_seen_at DESC NULLS LAST, bound_at DESC
+            LIMIT 1
+            """.trimIndent(),
+            "$normalized%"
+        )?.let(::mapDetails)
+    }
+
+    private fun mapDetails(rec: org.jooq.Record): DeviceDetailsEntity {
+        return DeviceDetailsEntity(
+            id = rec.get("id", UUID::class.java)!!,
+            userId = rec.get("user_id", UUID::class.java)!!,
+            fingerprintHash = rec.get("device_fingerprint_hash", String::class.java)!!,
+            deviceName = rec.get("device_name", String::class.java)!!,
+            platform = rec.get("platform", String::class.java)!!,
+            appVersion = rec.get("app_version", String::class.java),
+            status = rec.get("status", String::class.java)!!,
+            boundAt = rec.get("bound_at", OffsetDateTime::class.java)!!.toInstant(),
+            lastSeenAt = rec.get("last_seen_at", OffsetDateTime::class.java)?.toInstant()
+        )
+    }
 }

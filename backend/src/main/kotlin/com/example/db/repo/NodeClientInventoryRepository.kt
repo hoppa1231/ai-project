@@ -98,6 +98,20 @@ class NodeClientInventoryRepository(private val dsl: DSLContext) {
         )?.let(::map)
     }
 
+    fun listByEmail(email: String): List<NodeClientInventoryEntity> {
+        return dsl.fetch(
+            """
+            SELECT id, node_id, inbound_id, inbound_remark, inbound_tag, xray_email,
+                   vless_uuid, flow, enabled, total_bytes, up_bytes, down_bytes,
+                   expiry_time, limit_ip, sub_id, telegram_id, last_synced_at
+            FROM node_client_inventory
+            WHERE xray_email = ?
+            ORDER BY last_synced_at DESC
+            """.trimIndent(),
+            email
+        ).map(::map)
+    }
+
     fun deleteByNodeAndEmail(nodeId: UUID, email: String): Boolean {
         return dsl.execute(
             "DELETE FROM node_client_inventory WHERE node_id = ? AND xray_email = ?",
