@@ -51,6 +51,7 @@ data class NodeEntity(
     val realityShortId: String,
     val realityFingerprint: String,
     val realityAlpn: List<String>,
+    val nodeRole: String,
     val status: String,
     val health: String,
     val weight: Int,

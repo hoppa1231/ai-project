@@ -632,6 +632,7 @@
           "realityShortId": { "type": "string", "default": "" },
           "realityFingerprint": { "type": "string", "default": "chrome" },
           "realityAlpn": { "type": "array", "items": { "type": "string" }, "default": ["h2", "http/1.1"] },
+          "nodeRole": { "type": "string", "enum": ["ENTRY", "EXIT", "BOTH"], "default": "EXIT" },
           "weight": { "type": "integer", "default": 100 },
           "maxClients": { "type": "integer", "default": 10000 }
         }
@@ -654,6 +655,7 @@
           "realityShortId": { "type": "string" },
           "realityFingerprint": { "type": "string" },
           "realityAlpn": { "type": "array", "items": { "type": "string" } },
+          "nodeRole": { "type": "string", "enum": ["ENTRY", "EXIT", "BOTH"] },
           "status": { "type": "string" },
           "health": { "type": "string" },
           "weight": { "type": "integer" },
@@ -678,6 +680,7 @@
           "realityShortId": { "type": "string", "nullable": true },
           "realityFingerprint": { "type": "string", "nullable": true },
           "realityAlpn": { "type": "array", "items": { "type": "string" }, "nullable": true },
+          "nodeRole": { "type": "string", "enum": ["ENTRY", "EXIT", "BOTH"], "nullable": true },
           "status": { "type": "string", "nullable": true },
           "weight": { "type": "integer", "nullable": true },
           "maxClients": { "type": "integer", "nullable": true }

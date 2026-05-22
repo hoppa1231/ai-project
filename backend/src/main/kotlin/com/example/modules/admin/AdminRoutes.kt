@@ -45,6 +45,7 @@ data class AdminNodeResponse(
     val realityShortId: String,
     val realityFingerprint: String,
     val realityAlpn: List<String>,
+    val nodeRole: String,
     val status: String,
     val health: String,
     val weight: Int,
@@ -68,6 +69,7 @@ data class CreateNodeRequest(
     val realityShortId: String = "",
     val realityFingerprint: String = "chrome",
     val realityAlpn: List<String> = listOf("h2", "http/1.1"),
+    val nodeRole: String = "EXIT",
     val weight: Int = 100,
     val maxClients: Int = 10000
 )
@@ -88,6 +90,7 @@ data class PatchNodeRequest(
     val realityShortId: String? = null,
     val realityFingerprint: String? = null,
     val realityAlpn: List<String>? = null,
+    val nodeRole: String? = null,
     val status: String? = null,
     val weight: Int? = null,
     val maxClients: Int? = null
@@ -237,6 +240,7 @@ fun Application.configureAdminRoutes(context: AppContext) {
                                     realityShortId = body.realityShortId,
                                     realityFingerprint = body.realityFingerprint,
                                     realityAlpn = body.realityAlpn,
+                                    nodeRole = normalizeNodeRole(body.nodeRole),
                                     weight = body.weight,
                                     maxClients = body.maxClients
                                 )
@@ -281,6 +285,7 @@ fun Application.configureAdminRoutes(context: AppContext) {
                                     realityShortId = body.realityShortId,
                                     realityFingerprint = body.realityFingerprint,
                                     realityAlpn = body.realityAlpn,
+                                    nodeRole = body.nodeRole?.let(::normalizeNodeRole),
                                     status = body.status?.uppercase(),
                                     weight = body.weight,
                                     maxClients = body.maxClients
@@ -522,6 +527,12 @@ private fun parseNodeId(raw: String?): UUID {
     }
 }
 
+private fun normalizeNodeRole(raw: String): String {
+    val role = raw.trim().uppercase()
+    if (role == "ENTRY" || role == "EXIT" || role == "BOTH") return role
+    throw ApiException(HttpStatusCode.BadRequest, "INVALID_NODE_ROLE", "nodeRole must be ENTRY, EXIT or BOTH")
+}
+
 private fun toAdminNodeResponse(node: NodeEntity): AdminNodeResponse {
     return AdminNodeResponse(
         id = node.id.toString(),
@@ -539,6 +550,7 @@ private fun toAdminNodeResponse(node: NodeEntity): AdminNodeResponse {
         realityShortId = node.realityShortId,
         realityFingerprint = node.realityFingerprint,
         realityAlpn = node.realityAlpn,
+        nodeRole = node.nodeRole,
         status = node.status,
         health = node.health,
         weight = node.weight,
@@ -811,7 +823,7 @@ private val adminPanelHtml = """
       <h2>Nodes</h2>
       <table>
         <thead>
-          <tr><th>Name</th><th>Region</th><th>Status</th><th>Health</th><th>Load</th><th>Weight</th><th>Max clients</th><th>Actions</th></tr>
+          <tr><th>Name</th><th>Region</th><th>Role</th><th>Status</th><th>Health</th><th>Load</th><th>Weight</th><th>Max clients</th><th>Actions</th></tr>
         </thead>
         <tbody id="nodesBody"></tbody>
       </table>
@@ -835,6 +847,7 @@ private val adminPanelHtml = """
         <label>Reality short id<input id="editNodeRealityShortId"></label>
         <label>Fingerprint<input id="editNodeRealityFingerprint"></label>
         <label>ALPN<input id="editNodeRealityAlpn"></label>
+        <label>Role<select id="editNodeRole"><option>ENTRY</option><option>EXIT</option><option>BOTH</option></select></label>
         <label>Status<select id="editNodeStatus"><option>ACTIVE</option><option>DRAINING</option><option>DISABLED</option></select></label>
         <label>Weight<input id="editNodeWeight" type="number"></label>
         <label>Max clients<input id="editNodeMaxClients" type="number"></label>
@@ -863,6 +876,7 @@ private val adminPanelHtml = """
         <label>Reality short id<input id="nodeRealityShortId"></label>
         <label>Fingerprint<input id="nodeRealityFingerprint" value="chrome"></label>
         <label>ALPN<input id="nodeRealityAlpn" value="h2,http/1.1"></label>
+        <label>Role<select id="nodeRole"><option>ENTRY</option><option selected>EXIT</option><option>BOTH</option></select></label>
         <label>Weight<input id="nodeWeight" type="number" value="100"></label>
         <label>Max clients<input id="nodeMaxClients" type="number" value="10000"></label>
       </div>
@@ -992,12 +1006,14 @@ private val adminPanelHtml = """
         tr.innerHTML =
           "<td data-label='Name'>" + esc(node.name) + "</td>" +
           "<td data-label='Region'>" + esc(node.region) + "</td>" +
+          "<td data-label='Role'><select data-field='nodeRole'><option>ENTRY</option><option>EXIT</option><option>BOTH</option></select></td>" +
           "<td data-label='Status'><select data-field='status'><option>ACTIVE</option><option>DRAINING</option><option>DISABLED</option></select></td>" +
           "<td data-label='Health'><span class='status " + (node.health === "HEALTHY" ? "ok" : "bad") + "'>" + esc(node.health) + "</span></td>" +
           "<td data-label='Load'>" + node.load + "</td>" +
           "<td data-label='Weight'><input data-field='weight' type='number' value='" + node.weight + "'></td>" +
           "<td data-label='Max clients'><input data-field='maxClients' type='number' value='" + node.maxClients + "'></td>" +
           "<td data-label='Actions' class='actions'></td>";
+        tr.querySelector("[data-field=nodeRole]").value = node.nodeRole || "EXIT";
         tr.querySelector("[data-field=status]").value = node.status;
         const actions = tr.querySelector(".actions");
         const save = document.createElement("button");
@@ -1021,6 +1037,7 @@ private val adminPanelHtml = """
         headers: headers(),
         body: JSON.stringify({
           status: row.querySelector("[data-field=status]").value,
+          nodeRole: row.querySelector("[data-field=nodeRole]").value,
           weight: Number(row.querySelector("[data-field=weight]").value),
           maxClients: Number(row.querySelector("[data-field=maxClients]").value)
         })
@@ -1044,6 +1061,7 @@ private val adminPanelHtml = """
         realityShortId: el(prefix + "RealityShortId").value,
         realityFingerprint: el(prefix + "RealityFingerprint").value,
         realityAlpn: splitAlpn(el(prefix + "RealityAlpn").value),
+        nodeRole: el(prefix + "Role").value,
         weight: Number(el(prefix + "Weight").value),
         maxClients: Number(el(prefix + "MaxClients").value)
       };
@@ -1066,6 +1084,7 @@ private val adminPanelHtml = """
       el("editNodeRealityShortId").value = node.realityShortId;
       el("editNodeRealityFingerprint").value = node.realityFingerprint;
       el("editNodeRealityAlpn").value = (node.realityAlpn || []).join(",");
+      el("editNodeRole").value = node.nodeRole || "EXIT";
       el("editNodeStatus").value = node.status;
       el("editNodeWeight").value = node.weight;
       el("editNodeMaxClients").value = node.maxClients;

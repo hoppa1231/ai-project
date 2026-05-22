@@ -97,6 +97,7 @@ class VpnRoutePlannerTest {
             realityShortId = "abcd1234",
             realityFingerprint = "chrome",
             realityAlpn = listOf("h2", "http/1.1"),
+            nodeRole = "BOTH",
             status = "ACTIVE",
             health = "HEALTHY",
             weight = 100,

@@ -21,6 +21,7 @@ data class CreateNodeParams(
     val realityShortId: String,
     val realityFingerprint: String,
     val realityAlpn: List<String>,
+    val nodeRole: String,
     val weight: Int,
     val maxClients: Int
 )
@@ -40,6 +41,7 @@ data class UpdateNodeParams(
     val realityShortId: String? = null,
     val realityFingerprint: String? = null,
     val realityAlpn: List<String>? = null,
+    val nodeRole: String? = null,
     val status: String? = null,
     val weight: Int? = null,
     val maxClients: Int? = null
@@ -60,7 +62,7 @@ class NodeRepository(private val dsl: DSLContext) {
                     WHERE status = 'ACTIVE'
                     GROUP BY node_id
                 ) c ON c.node_id = n.id
-                WHERE n.status = 'ACTIVE' AND n.health = 'HEALTHY'
+                WHERE n.status = 'ACTIVE' AND n.health = 'HEALTHY' AND n.node_role IN ('EXIT', 'BOTH')
                 ORDER BY n.weight DESC, COALESCE(c.cnt, 0) ASC
                 """.trimIndent()
             )
@@ -77,7 +79,7 @@ class NodeRepository(private val dsl: DSLContext) {
                     WHERE status = 'ACTIVE'
                     GROUP BY node_id
                 ) c ON c.node_id = n.id
-                WHERE n.status = 'ACTIVE' AND n.health = 'HEALTHY' AND n.region = ?
+                WHERE n.status = 'ACTIVE' AND n.health = 'HEALTHY' AND n.node_role IN ('EXIT', 'BOTH') AND n.region = ?
                 ORDER BY n.weight DESC, COALESCE(c.cnt, 0) ASC
                 """.trimIndent(),
                 region
@@ -150,7 +152,7 @@ class NodeRepository(private val dsl: DSLContext) {
                 WHERE status = 'ACTIVE'
                 GROUP BY node_id
             ) c ON c.node_id = n.id
-            WHERE n.id = ? AND n.status = 'ACTIVE' AND n.health = 'HEALTHY'
+                WHERE n.id = ? AND n.status = 'ACTIVE' AND n.health = 'HEALTHY' AND n.node_role IN ('EXIT', 'BOTH')
             """.trimIndent(),
             id
         ) ?: return null
@@ -178,10 +180,10 @@ class NodeRepository(private val dsl: DSLContext) {
                 name, region, country_code, hostname, public_address, public_port,
                 api_host, api_port, inbound_tag,
                 reality_server_name, reality_public_key, reality_short_id,
-                reality_fingerprint, reality_alpn, weight, max_clients,
+                reality_fingerprint, reality_alpn, node_role, weight, max_clients,
                 status, health
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::text[], ?, ?, 'ACTIVE', 'UNKNOWN')
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::text[], ?::node_role, ?, ?, 'ACTIVE', 'UNKNOWN')
             RETURNING *, 0 AS load
             """.trimIndent(),
             params.name,
@@ -198,6 +200,7 @@ class NodeRepository(private val dsl: DSLContext) {
             params.realityShortId,
             params.realityFingerprint,
             toPgTextArray(params.realityAlpn),
+            params.nodeRole,
             params.weight,
             params.maxClients
         ) ?: error("failed to insert node")
@@ -224,6 +227,7 @@ class NodeRepository(private val dsl: DSLContext) {
                 reality_short_id = COALESCE(?, reality_short_id),
                 reality_fingerprint = COALESCE(?, reality_fingerprint),
                 reality_alpn = COALESCE(?::text[], reality_alpn),
+                node_role = COALESCE(?, node_role::text)::node_role,
                 status = COALESCE(?, status::text)::node_status,
                 weight = COALESCE(?, weight),
                 max_clients = COALESCE(?, max_clients)
@@ -243,6 +247,7 @@ class NodeRepository(private val dsl: DSLContext) {
             params.realityShortId,
             params.realityFingerprint,
             params.realityAlpn?.let(::toPgTextArray),
+            params.nodeRole,
             params.status,
             params.weight,
             params.maxClients,
@@ -300,7 +305,7 @@ class NodeRepository(private val dsl: DSLContext) {
                     WHERE status = 'ACTIVE'
                     GROUP BY node_id
                 ) c ON c.node_id = n.id
-                WHERE n.status = 'ACTIVE' AND n.health = 'HEALTHY' AND n.id <> ?
+                WHERE n.status = 'ACTIVE' AND n.health = 'HEALTHY' AND n.node_role IN ('ENTRY', 'BOTH') AND n.id <> ?
                 ORDER BY n.weight DESC, COALESCE(c.cnt, 0) ASC
                 LIMIT 1
                 """.trimIndent(),
@@ -319,6 +324,7 @@ class NodeRepository(private val dsl: DSLContext) {
                 ) c ON c.node_id = n.id
                 WHERE n.status = 'ACTIVE'
                   AND n.health = 'HEALTHY'
+                  AND n.node_role IN ('ENTRY', 'BOTH')
                   AND n.id <> ?
                   AND n.region <> ?
                 ORDER BY n.weight DESC, COALESCE(c.cnt, 0) ASC
@@ -349,6 +355,7 @@ class NodeRepository(private val dsl: DSLContext) {
             realityShortId = rec.get("reality_short_id", String::class.java)!!,
             realityFingerprint = rec.get("reality_fingerprint", String::class.java)!!,
             realityAlpn = toStringList(rec.get("reality_alpn", SqlArray::class.java)),
+            nodeRole = rec.get("node_role", String::class.java) ?: "EXIT",
             status = rec.get("status", String::class.java)!!,
             health = rec.get("health", String::class.java)!!,
             weight = rec.get("weight", Int::class.java)!!,
