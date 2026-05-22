@@ -268,28 +268,15 @@ fun Application.configureVpnRoutes(context: AppContext) {
                     } ?: (context.nodes.pickNode(exitRegion)
                         ?: throw ApiException(HttpStatusCode.ServiceUnavailable, "NO_HEALTHY_NODES", "No healthy exit node available"))
 
-                    val hopSpecs = if (requestedRouteMode == "CASCADE") {
-                        val entryNode = context.nodes.pickEntryNode(exitNode)
-                        if (entryNode == null) {
-                            if (!context.config.cascadeFallbackToSingle) {
-                                throw ApiException(
-                                    HttpStatusCode.ServiceUnavailable,
-                                    "NO_ENTRY_NODES",
-                                    "No healthy entry node available for cascade route"
-                                )
-                            }
-                            routeMode = "SINGLE"
-                            routeFallbackReason = "NO_ENTRY_NODES"
-                            listOf(HopSpec(index = 0, role = "EXIT", node = exitNode))
-                        } else {
-                            listOf(
-                                HopSpec(index = 0, role = "ENTRY", node = entryNode),
-                                HopSpec(index = 1, role = "EXIT", node = exitNode)
-                            )
-                        }
-                    } else {
-                        listOf(HopSpec(index = 0, role = "EXIT", node = exitNode))
-                    }
+                    val routePlan = planRoute(
+                        requestedRouteMode = requestedRouteMode,
+                        exitNode = exitNode,
+                        cascadeFallbackToSingle = context.config.cascadeFallbackToSingle,
+                        pickEntryNode = context.nodes::pickEntryNode
+                    )
+                    routeMode = routePlan.routeMode
+                    routeFallbackReason = routePlan.fallbackReason
+                    val hopSpecs = routePlan.hops
 
                     val ttl = body.ttlHours?.let { Duration.ofHours(it) } ?: context.config.issueConfigTtl
                     val expiresAt = Instant.now().plus(ttl)
@@ -530,11 +517,58 @@ fun Application.configureVpnRoutes(context: AppContext) {
     }
 }
 
-private data class HopSpec(
+internal data class HopSpec(
     val index: Int,
     val role: String,
     val node: NodeEntity
 )
+
+internal data class RoutePlan(
+    val routeMode: String,
+    val fallbackReason: String?,
+    val hops: List<HopSpec>
+)
+
+internal fun planRoute(
+    requestedRouteMode: String,
+    exitNode: NodeEntity,
+    cascadeFallbackToSingle: Boolean,
+    pickEntryNode: (NodeEntity) -> NodeEntity?
+): RoutePlan {
+    if (requestedRouteMode != "CASCADE") {
+        return RoutePlan(
+            routeMode = "SINGLE",
+            fallbackReason = null,
+            hops = listOf(HopSpec(index = 0, role = "EXIT", node = exitNode))
+        )
+    }
+
+    val entryNode = pickEntryNode(exitNode)
+    if (entryNode != null) {
+        return RoutePlan(
+            routeMode = "CASCADE",
+            fallbackReason = null,
+            hops = listOf(
+                HopSpec(index = 0, role = "ENTRY", node = entryNode),
+                HopSpec(index = 1, role = "EXIT", node = exitNode)
+            )
+        )
+    }
+
+    if (!cascadeFallbackToSingle) {
+        throw ApiException(
+            HttpStatusCode.ServiceUnavailable,
+            "NO_ENTRY_NODES",
+            "No healthy entry node available for cascade route"
+        )
+    }
+
+    return RoutePlan(
+        routeMode = "SINGLE",
+        fallbackReason = "NO_ENTRY_NODES",
+        hops = listOf(HopSpec(index = 0, role = "EXIT", node = exitNode))
+    )
+}
 
 private data class ProvisionedHop(
     val spec: HopSpec,
