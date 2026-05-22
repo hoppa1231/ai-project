@@ -154,6 +154,69 @@ object SingBoxConfigFactory {
         return config.toString()
     }
 
+    fun fromServerClientConfig(clientConfigJson: String, policy: RoutingPolicy = RoutingPolicy.default()): String {
+        val serverConfig = JSONObject(clientConfigJson)
+        require(serverConfig.optString("format") == "sing-box") { "Unsupported VPN config format" }
+
+        val serverOutbounds = serverConfig.optJSONArray("outbounds")
+            ?: serverConfig.optJSONObject("outbound")?.let { JSONArray().put(it) }
+            ?: error("VPN config has no outbounds")
+        require(serverOutbounds.length() > 0) { "VPN config has no outbounds" }
+
+        val finalOutbound = serverConfig.optJSONObject("route")
+            ?.optString("final")
+            ?.takeIf { it.isNotBlank() }
+            ?: serverOutbounds.getJSONObject(serverOutbounds.length() - 1).getString("tag")
+
+        val outbounds = JSONArray()
+        val serverAddresses = mutableListOf<String>()
+        for (index in 0 until serverOutbounds.length()) {
+            val outbound = JSONObject(serverOutbounds.getJSONObject(index).toString())
+            outbound.put("network", outbound.optString("network", "tcp"))
+            outbound.put("domain_resolver", BOOTSTRAP_DNS_TAG)
+            outbound.optString("server").takeIf { it.isNotBlank() }?.let(serverAddresses::add)
+            outbounds.put(outbound)
+        }
+        outbounds.put(JSONObject().put("type", "direct").put("tag", "direct"))
+        outbounds.put(JSONObject().put("type", "block").put("tag", "block"))
+
+        val routeRules = baseRouteRules(serverAddresses)
+        val routeRuleSets = geoipRouteRuleSets(policy, finalOutbound)
+
+        policy.routeRules
+            .filter { it.enabled && it.values.isNotEmpty() }
+            .sortedBy { it.priority }
+            .mapNotNull { routeRuleJson(it, finalOutbound) }
+            .forEach(routeRules::put)
+
+        val route = JSONObject()
+            .put("auto_detect_interface", true)
+            .put("default_domain_resolver", BOOTSTRAP_DNS_TAG)
+            .put("rules", routeRules)
+            .put("final", if (policy.defaultRoute == "DIRECT") "direct" else finalOutbound)
+        if (routeRuleSets.length() > 0) {
+            route.put("rule_set", routeRuleSets)
+        }
+
+        val config = JSONObject()
+            .put("log", JSONObject().put("level", "info"))
+            .put("dns", dnsJson(finalOutbound))
+            .put("inbounds", tunInbounds(routeExcludeAddresses(serverAddresses)))
+            .put("outbounds", outbounds)
+            .put("route", route)
+        if (routeRuleSets.length() > 0) {
+            config.put(
+                "experimental",
+                JSONObject().put(
+                    "cache_file",
+                    JSONObject().put("enabled", true)
+                )
+            )
+        }
+
+        return config.toString()
+    }
+
     private fun apiBaseHost(): String? {
         return runCatching { URI(BuildConfig.API_BASE_URL).host }
             .getOrNull()
@@ -161,11 +224,11 @@ object SingBoxConfigFactory {
             ?.takeIf { it.isNotBlank() }
     }
 
-    private fun routeRuleJson(rule: RouteRule): JSONObject? {
+    private fun routeRuleJson(rule: RouteRule, vpnOutboundTag: String = "proxy"): JSONObject? {
         val outbound = when (rule.action) {
             "DIRECT" -> "direct"
             "BLOCK" -> "block"
-            else -> "proxy"
+            else -> vpnOutboundTag
         }
         val values = if (rule.matchType == "GEOIP") {
             rule.values.mapNotNull(::normalizedGeoipCode).map { "geoip-$it" }
@@ -188,7 +251,82 @@ object SingBoxConfigFactory {
             .put("outbound", outbound)
     }
 
-    private fun geoipRouteRuleSets(policy: RoutingPolicy): JSONArray {
+    private fun baseRouteRules(serverAddresses: List<String>): JSONArray {
+        val routeRules = JSONArray()
+            .put(
+                JSONObject()
+                    .put("protocol", "dns")
+                    .put("action", "hijack-dns")
+            )
+            .put(
+                JSONObject()
+                    .put("ip_is_private", true)
+                    .put("outbound", "direct")
+            )
+
+        apiBaseHost()?.let { host ->
+            routeRules.put(
+                JSONObject()
+                    .put("domain_suffix", JSONArray().put(host))
+                    .put("outbound", "direct")
+            )
+        }
+
+        serverAddresses
+            .filter { it.isIpv4Address() }
+            .distinct()
+            .forEach { address ->
+                routeRules.put(
+                    JSONObject()
+                        .put("ip_cidr", JSONArray().put("$address/32"))
+                        .put("outbound", "direct")
+                )
+            }
+
+        return routeRules
+    }
+
+    private fun dnsJson(remoteDetour: String): JSONObject =
+        JSONObject()
+            .put(
+                "servers",
+                JSONArray()
+                    .put(
+                        JSONObject()
+                            .put("type", "udp")
+                            .put("tag", BOOTSTRAP_DNS_TAG)
+                            .put("server", "1.1.1.1")
+                            .put("server_port", 53)
+                    )
+                    .put(
+                        JSONObject()
+                            .put("type", "tcp")
+                            .put("tag", REMOTE_DNS_TAG)
+                            .put("server", "1.1.1.1")
+                            .put("server_port", 53)
+                            .put("detour", remoteDetour)
+                    )
+            )
+            .put("final", BOOTSTRAP_DNS_TAG)
+            .put("strategy", "ipv4_only")
+            .put("reverse_mapping", true)
+
+    private fun tunInbounds(routeExcludeAddresses: JSONArray): JSONArray =
+        JSONArray().put(
+            JSONObject()
+                .put("type", "tun")
+                .put("tag", "tun-in")
+                .put("interface_name", "tun0")
+                .put("address", JSONArray().put("172.19.0.1/30"))
+                .put("mtu", 1400)
+                .put("auto_route", true)
+                .put("strict_route", false)
+                .put("sniff", true)
+                .put("sniff_override_destination", true)
+                .put("route_exclude_address", routeExcludeAddresses)
+        )
+
+    private fun geoipRouteRuleSets(policy: RoutingPolicy, downloadDetour: String = "proxy"): JSONArray {
         val codes = policy.routeRules
             .filter { it.enabled && it.matchType == "GEOIP" }
             .flatMap { it.values }
@@ -203,7 +341,7 @@ object SingBoxConfigFactory {
                         .put("tag", tag)
                         .put("format", "binary")
                         .put("url", GEOIP_RULE_SET_URL_OVERRIDES[code] ?: "$GEOIP_RULE_SET_BASE_URL/$tag.srs")
-                        .put("download_detour", "proxy")
+                        .put("download_detour", downloadDetour)
                 )
             }
         }
@@ -219,6 +357,17 @@ object SingBoxConfigFactory {
             addAll(LAN_BYPASS_CIDRS)
             add("1.1.1.1/32")
             if (profile.host.isIpv4Address()) add("${profile.host}/32")
+        }
+        return JSONArray().also { array -> cidrs.distinct().forEach(array::put) }
+    }
+
+    private fun routeExcludeAddresses(serverAddresses: List<String>): JSONArray {
+        val cidrs = buildList {
+            addAll(LAN_BYPASS_CIDRS)
+            add("1.1.1.1/32")
+            serverAddresses
+                .filter { it.isIpv4Address() }
+                .forEach { add("$it/32") }
         }
         return JSONArray().also { array -> cidrs.distinct().forEach(array::put) }
     }

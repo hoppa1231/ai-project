@@ -9,6 +9,7 @@ import com.example.config.loadAppConfig
 import com.example.modules.admin.configureAdminRoutes
 import com.example.modules.auth.configureAuthRoutes
 import com.example.modules.auth.startTelegramAppLoginWorker
+import com.example.modules.client.configureClientSettingsRoutes
 import com.example.modules.devices.configureDeviceRoutes
 import com.example.modules.health.configureHealthRoutes
 import com.example.modules.health.startNodeHealthWorker
@@ -93,6 +94,7 @@ fun Application.module() {
     }
 
     configureAuthRoutes(context)
+    configureClientSettingsRoutes(context)
     configureDeviceRoutes(context)
     configureNodeRoutes(context)
     configureVpnRoutes(context)

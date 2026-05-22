@@ -25,6 +25,21 @@ class SingBoxTunnel(context: Context) {
         ContextCompat.startForegroundService(appContext, intent)
     }
 
+    suspend fun startWithClientConfig(
+        clientConfigJson: String,
+        policy: RoutingPolicy = RoutingPolicy.default(),
+        quotaUsedBytes: Long = 0L,
+        quotaTotalBytes: Long = 0L
+    ) = withContext(Dispatchers.IO) {
+        val config = SingBoxConfigFactory.fromServerClientConfig(clientConfigJson, policy)
+        val intent = Intent(appContext, SingBoxVpnService::class.java)
+            .setAction(SingBoxVpnService.ACTION_START)
+            .putExtra(SingBoxVpnService.EXTRA_CONFIG, config)
+            .putExtra(SingBoxVpnService.EXTRA_QUOTA_USED_BYTES, quotaUsedBytes)
+            .putExtra(SingBoxVpnService.EXTRA_QUOTA_TOTAL_BYTES, quotaTotalBytes)
+        ContextCompat.startForegroundService(appContext, intent)
+    }
+
     fun stop() {
         val intent = Intent(appContext, SingBoxVpnService::class.java)
             .setAction(SingBoxVpnService.ACTION_STOP)

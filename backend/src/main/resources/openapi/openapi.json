@@ -13,6 +13,7 @@
   ],
   "tags": [
     { "name": "Auth" },
+    { "name": "Client" },
     { "name": "Devices" },
     { "name": "Nodes" },
     { "name": "VPN" },
@@ -22,6 +23,17 @@
     { "name": "System" }
   ],
   "paths": {
+    "/client/settings": {
+      "get": {
+        "tags": ["Client"],
+        "summary": "Get client runtime settings",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ClientSettingsResponse" } } } },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
     "/auth/guest": {
       "post": {
         "tags": ["Auth"],
@@ -501,6 +513,15 @@
           "forceRotate": { "type": "boolean", "default": false }
         }
       },
+      "ClientSettingsResponse": {
+        "type": "object",
+        "properties": {
+          "defaultRouteMode": { "type": "string", "enum": ["SINGLE", "CASCADE"] },
+          "cascadeEnabled": { "type": "boolean" },
+          "cascadeFallbackToSingle": { "type": "boolean" },
+          "clientConfigPreferred": { "type": "boolean" }
+        }
+      },
       "IssueConfigResponse": {
         "type": "object",
         "properties": {
@@ -510,6 +531,8 @@
           "issuedAt": { "type": "string", "format": "date-time", "nullable": true },
           "revokedAt": { "type": "string", "format": "date-time", "nullable": true },
           "routeMode": { "type": "string", "enum": ["SINGLE", "CASCADE"] },
+          "requestedRouteMode": { "type": "string", "enum": ["SINGLE", "CASCADE"], "nullable": true },
+          "routeFallbackReason": { "type": "string", "nullable": true },
           "node": { "$ref": "#/components/schemas/NodeRefResponse" },
           "entryNode": { "$ref": "#/components/schemas/NodeRefResponse", "nullable": true },
           "exitNode": { "$ref": "#/components/schemas/NodeRefResponse", "nullable": true },

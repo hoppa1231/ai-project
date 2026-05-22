@@ -27,6 +27,8 @@ data class AppConfig(
     val telegramWebhookSecret: String,
     val telegramAdminIds: Set<Long>,
     val issueConfigTtl: Duration,
+    val defaultVpnRouteMode: String,
+    val cascadeFallbackToSingle: Boolean,
     val freeGbPerMonth: Long
 )
 
@@ -58,6 +60,14 @@ fun Application.loadAppConfig(): AppConfig {
             ?.toSet()
             ?: emptySet(),
         issueConfigTtl = Duration.ofHours(cfg.propertyOrNull("app.vpn.issueTtlHours")?.getString()?.toLong() ?: 24),
+        defaultVpnRouteMode = cfg.propertyOrNull("app.vpn.defaultRouteMode")?.getString()
+            ?.trim()
+            ?.uppercase()
+            ?.takeIf { it == "SINGLE" || it == "CASCADE" }
+            ?: "CASCADE",
+        cascadeFallbackToSingle = cfg.propertyOrNull("app.vpn.cascadeFallbackToSingle")?.getString()
+            ?.toBooleanStrictOrNull()
+            ?: true,
         freeGbPerMonth = cfg.propertyOrNull("app.quota.freeGbPerMonth")?.getString()?.toLong() ?: 10
     )
 }

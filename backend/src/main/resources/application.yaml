@@ -33,5 +33,7 @@ app:
     adminIds: ${?TELEGRAM_ADMIN_IDS}
   vpn:
     issueTtlHours: 24
+    defaultRouteMode: ${?VPN_DEFAULT_ROUTE_MODE}
+    cascadeFallbackToSingle: ${?VPN_CASCADE_FALLBACK_TO_SINGLE}
   quota:
     freeGbPerMonth: 10

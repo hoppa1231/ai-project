@@ -112,6 +112,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private data class VpnLaunchProfile(
+    val vlessUri: String?,
+    val clientConfigJson: String?
+)
+
 @Composable
 fun SovietVpnApp(
     telegramAuthEvents: Flow<TelegramAuthData> = emptyFlow()
@@ -393,26 +398,53 @@ fun SovietVpnApp(
         return maxOf(configBytes, runtimeQuotaTotalBytes)
     }
 
-    suspend fun resolveVlessUri(forceNew: Boolean = false): String {
-        selectedServer.vlessUri?.takeIf { it.isNotBlank() }?.let { return it }
+    suspend fun resolveVpnLaunchProfile(forceNew: Boolean = false): VpnLaunchProfile {
+        selectedServer.vlessUri?.takeIf { it.isNotBlank() }?.let {
+            return VpnLaunchProfile(vlessUri = it, clientConfigJson = null)
+        }
+        var forceRotateForRouteMode = false
         if (!forceNew) {
-            api.activeVlessUri()?.takeIf { it.isNotBlank() }?.let { return it }
+            if (!api.activeConfigMatchesDefaultRouteMode()) {
+                api.clearSavedActiveConfig()
+                forceRotateForRouteMode = true
+            }
+            api.activeClientConfigJson()?.takeIf { it.isNotBlank() }?.let {
+                return VpnLaunchProfile(vlessUri = api.activeVlessUri(), clientConfigJson = it)
+            }
+            api.activeVlessUri()?.takeIf { it.isNotBlank() }?.let {
+                return VpnLaunchProfile(vlessUri = it, clientConfigJson = null)
+            }
         }
         val issued = api.issueVpnConfig(
             region = selectedServer.region.takeIf { it.isNotBlank() },
-            exitNodeId = selectedServer.id.substringBefore(":").takeIf { it.isNotBlank() }
+            exitNodeId = selectedServer.id.substringBefore(":").takeIf { it.isNotBlank() },
+            forceRotate = forceNew || forceRotateForRouteMode
         )
-        return requireNotNull(issued.vlessUri?.takeIf { it.isNotBlank() }) { "Сервер не вернул VLESS-конфиг" }
+        val clientConfigJson = issued.clientConfigJson?.takeIf { it.isNotBlank() }
+        val vlessUri = issued.vlessUri?.takeIf { it.isNotBlank() }
+        require(clientConfigJson != null || vlessUri != null) { "Сервер не вернул VPN-конфиг" }
+        return VpnLaunchProfile(vlessUri = vlessUri, clientConfigJson = clientConfigJson)
     }
 
     suspend fun startTunnelWithConfig(policy: RoutingPolicy, forceNewConfig: Boolean = false) {
-        val vlessUri = resolveVlessUri(forceNew = forceNewConfig)
-        SingBoxTunnel(context).start(
-            vlessUri,
-            policy,
-            quotaUsedBytes = quotaUsedBytes(),
-            quotaTotalBytes = quotaTotalBytes()
-        )
+        val launchProfile = resolveVpnLaunchProfile(forceNew = forceNewConfig)
+        val tunnel = SingBoxTunnel(context)
+        val clientConfigJson = launchProfile.clientConfigJson
+        if (clientConfigJson != null) {
+            tunnel.startWithClientConfig(
+                clientConfigJson,
+                policy,
+                quotaUsedBytes = quotaUsedBytes(),
+                quotaTotalBytes = quotaTotalBytes()
+            )
+        } else {
+            tunnel.start(
+                requireNotNull(launchProfile.vlessUri) { "Сервер не вернул VLESS-конфиг" },
+                policy,
+                quotaUsedBytes = quotaUsedBytes(),
+                quotaTotalBytes = quotaTotalBytes()
+            )
+        }
     }
 
     LaunchedEffect(configFailureRetry) {

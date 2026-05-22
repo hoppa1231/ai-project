@@ -21,6 +21,7 @@ class BackendApi(
 
     suspend fun bootstrap(): VpnBootstrap {
         ensureSession()
+        val clientSettings = runCatching { loadClientSettings() }.getOrDefault(ClientSettings.default())
         val nodes = loadNodes()
         val quota = runCatching { loadQuota() }.getOrNull()
         val notifications = runCatching { loadNotifications() }.getOrDefault(emptyList())
@@ -28,6 +29,7 @@ class BackendApi(
             nodes = nodes,
             quota = quota,
             notifications = notifications,
+            clientSettings = clientSettings,
             activeConfigId = activeConfigId
         )
     }
@@ -82,11 +84,18 @@ class BackendApi(
         return parseRoutingPolicy(response).also { cacheRoutingPolicy(response) }
     }
 
-    suspend fun issueVpnConfig(region: String? = null, exitNodeId: String? = null): IssuedConfig {
+    suspend fun issueVpnConfig(
+        region: String? = null,
+        exitNodeId: String? = null,
+        routeMode: String? = null,
+        forceRotate: Boolean = false
+    ): IssuedConfig {
         val session = ensureSession()
+        val requestedRouteMode = routeMode?.normalizeRouteMode() ?: cachedDefaultRouteMode()
         val body = JSONObject()
             .put("deviceId", session.deviceId)
-            .put("routeMode", "SINGLE")
+            .put("routeMode", requestedRouteMode)
+            .put("forceRotate", forceRotate)
             .apply {
                 if (!region.isNullOrBlank()) put("region", region)
                 if (!exitNodeId.isNullOrBlank()) put("exitNodeId", exitNodeId)
@@ -104,8 +113,25 @@ class BackendApi(
         prefs.edit()
             .putString(KEY_ACTIVE_CONFIG_ID, issued.configId)
             .putString(KEY_ACTIVE_VLESS_URI, issued.vlessUri)
+            .putString(KEY_ACTIVE_CLIENT_CONFIG_JSON, issued.clientConfigJson)
+            .putString(KEY_ACTIVE_ROUTE_MODE, issued.routeMode.normalizeRouteMode())
+            .putString(KEY_ACTIVE_REQUESTED_ROUTE_MODE, issued.requestedRouteMode?.normalizeRouteMode() ?: requestedRouteMode)
+            .putString(KEY_ACTIVE_ROUTE_FALLBACK_REASON, issued.routeFallbackReason)
             .apply()
         return issued
+    }
+
+    fun activeClientConfigJson(): String? =
+        prefs.getString(KEY_ACTIVE_CLIENT_CONFIG_JSON, null)?.takeIf { it.isNotBlank() }
+
+    fun cachedDefaultRouteMode(): String =
+        prefs.getString(KEY_DEFAULT_ROUTE_MODE, null)?.normalizeRouteMode() ?: "CASCADE"
+
+    fun activeConfigMatchesDefaultRouteMode(): Boolean {
+        val activeConfigId = activeConfigId ?: return true
+        val requestedRouteMode = prefs.getString(KEY_ACTIVE_REQUESTED_ROUTE_MODE, null)?.normalizeRouteMode()
+            ?: return true
+        return activeConfigId.isNotBlank() && requestedRouteMode == cachedDefaultRouteMode()
     }
 
     fun telegramAccount(): TelegramAccount? {
@@ -268,6 +294,25 @@ class BackendApi(
         }
     }
 
+    private suspend fun loadClientSettings(): ClientSettings {
+        val response = authorizedRequest(path = "/client/settings")
+        val json = JSONObject(response)
+        val previousRouteMode = prefs.getString(KEY_DEFAULT_ROUTE_MODE, null)?.normalizeRouteMode()
+        val settings = ClientSettings(
+            defaultRouteMode = json.optString("defaultRouteMode", "CASCADE").normalizeRouteMode(),
+            cascadeEnabled = json.optBoolean("cascadeEnabled", true),
+            cascadeFallbackToSingle = json.optBoolean("cascadeFallbackToSingle", true),
+            clientConfigPreferred = json.optBoolean("clientConfigPreferred", true)
+        )
+        if (previousRouteMode != null && previousRouteMode != settings.defaultRouteMode) {
+            clearActiveConfig()
+        }
+        prefs.edit()
+            .putString(KEY_DEFAULT_ROUTE_MODE, settings.defaultRouteMode)
+            .apply()
+        return settings
+    }
+
     private suspend fun loadQuota(): QuotaStatus {
         val response = authorizedRequest(path = "/quota/current")
         val json = JSONObject(response)
@@ -426,7 +471,11 @@ class BackendApi(
             expiresAt = json.optString("expiresAt", ""),
             nodeName = node.optString("name", "VPN node"),
             region = node.optString("region", ""),
-            vlessUri = json.optStringOrNull("vlessUri")
+            routeMode = json.optString("routeMode", "SINGLE").uppercase(),
+            requestedRouteMode = json.optStringOrNull("requestedRouteMode"),
+            routeFallbackReason = json.optStringOrNull("routeFallbackReason"),
+            vlessUri = json.optStringOrNull("vlessUri"),
+            clientConfigJson = json.optJSONObject("clientConfig")?.toString()
         )
     }
 
@@ -482,6 +531,10 @@ class BackendApi(
         prefs.edit()
             .remove(KEY_ACTIVE_CONFIG_ID)
             .remove(KEY_ACTIVE_VLESS_URI)
+            .remove(KEY_ACTIVE_CLIENT_CONFIG_JSON)
+            .remove(KEY_ACTIVE_ROUTE_MODE)
+            .remove(KEY_ACTIVE_REQUESTED_ROUTE_MODE)
+            .remove(KEY_ACTIVE_ROUTE_FALLBACK_REASON)
             .apply()
     }
 
@@ -492,6 +545,10 @@ class BackendApi(
             .remove(KEY_DEVICE_ID)
             .remove(KEY_ACTIVE_CONFIG_ID)
             .remove(KEY_ACTIVE_VLESS_URI)
+            .remove(KEY_ACTIVE_CLIENT_CONFIG_JSON)
+            .remove(KEY_ACTIVE_ROUTE_MODE)
+            .remove(KEY_ACTIVE_REQUESTED_ROUTE_MODE)
+            .remove(KEY_ACTIVE_ROUTE_FALLBACK_REASON)
             .remove(KEY_TELEGRAM_ID)
             .remove(KEY_TELEGRAM_USERNAME)
             .remove(KEY_TELEGRAM_FIRST_NAME)
@@ -510,6 +567,11 @@ class BackendApi(
         private const val KEY_DEVICE_FINGERPRINT = "device_fingerprint"
         private const val KEY_ACTIVE_CONFIG_ID = "active_config_id"
         private const val KEY_ACTIVE_VLESS_URI = "active_vless_uri"
+        private const val KEY_ACTIVE_CLIENT_CONFIG_JSON = "active_client_config_json"
+        private const val KEY_ACTIVE_ROUTE_MODE = "active_route_mode"
+        private const val KEY_ACTIVE_REQUESTED_ROUTE_MODE = "active_requested_route_mode"
+        private const val KEY_ACTIVE_ROUTE_FALLBACK_REASON = "active_route_fallback_reason"
+        private const val KEY_DEFAULT_ROUTE_MODE = "default_route_mode"
         private const val KEY_TELEGRAM_ID = "telegram_id"
         private const val KEY_TELEGRAM_USERNAME = "telegram_username"
         private const val KEY_TELEGRAM_FIRST_NAME = "telegram_first_name"
@@ -521,8 +583,25 @@ data class VpnBootstrap(
     val nodes: List<VpnNode>,
     val quota: QuotaStatus?,
     val notifications: List<ServerNotification>,
+    val clientSettings: ClientSettings = ClientSettings.default(),
     val activeConfigId: String?
 )
+
+data class ClientSettings(
+    val defaultRouteMode: String,
+    val cascadeEnabled: Boolean,
+    val cascadeFallbackToSingle: Boolean,
+    val clientConfigPreferred: Boolean
+) {
+    companion object {
+        fun default(): ClientSettings = ClientSettings(
+            defaultRouteMode = "CASCADE",
+            cascadeEnabled = true,
+            cascadeFallbackToSingle = true,
+            clientConfigPreferred = true
+        )
+    }
+}
 
 data class ServerNotification(
     val id: String,
@@ -565,7 +644,11 @@ data class IssuedConfig(
     val expiresAt: String,
     val nodeName: String,
     val region: String,
-    val vlessUri: String?
+    val routeMode: String,
+    val requestedRouteMode: String?,
+    val routeFallbackReason: String?,
+    val vlessUri: String?,
+    val clientConfigJson: String?
 )
 
 data class RevokeResult(
@@ -671,6 +754,11 @@ private fun formatHttpMessage(code: Int, body: String): String {
 private fun JSONObject.optStringOrNull(name: String): String? {
     if (!has(name) || isNull(name)) return null
     return optString(name).takeIf { it.isNotBlank() }
+}
+
+private fun String.normalizeRouteMode(): String {
+    val normalized = trim().uppercase()
+    return if (normalized == "SINGLE" || normalized == "CASCADE") normalized else "CASCADE"
 }
 
 private fun JSONObject.optGb(gbName: String, bytesName: String): Double {

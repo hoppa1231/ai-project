@@ -68,6 +68,8 @@ data class IssueConfigResponse(
     val issuedAt: String? = null,
     val revokedAt: String? = null,
     val routeMode: String = "SINGLE",
+    val requestedRouteMode: String? = null,
+    val routeFallbackReason: String? = null,
     val node: NodeRefResponse,
     val entryNode: NodeRefResponse? = null,
     val exitNode: NodeRefResponse? = null,
@@ -211,6 +213,7 @@ fun Application.configureVpnRoutes(context: AppContext) {
                     if (device.status != "ENABLED") {
                         throw ApiException(HttpStatusCode.Forbidden, "DEVICE_DISABLED", "Device disabled")
                     }
+                    val requestedRouteMode = normalizeRouteMode(body.routeMode ?: body.mode ?: context.config.defaultVpnRouteMode)
 
                     val byKey = context.vpn.findByIdempotency(userId, idempotencyKey)
                     if (byKey != null) {
@@ -218,10 +221,16 @@ fun Application.configureVpnRoutes(context: AppContext) {
                         return@post
                     }
 
-                    if (!body.forceRotate) {
-                        val active = context.vpn.findActiveByDevice(userId, deviceId)
-                        if (active != null) {
-                            call.respond(buildIssueResponse(context, active))
+                    val active = context.vpn.findActiveByDevice(userId, deviceId)
+                    if (active != null) {
+                        if (body.forceRotate) {
+                            try {
+                                revokeIssuedConfig(context, active, "force_rotate")
+                            } catch (e: Exception) {
+                                throw ApiException(HttpStatusCode.BadGateway, "XRAY_REMOVE_FAILED", "Failed to rotate active VPN config")
+                            }
+                        } else {
+                            call.respond(buildIssueResponse(context, active).copy(requestedRouteMode = requestedRouteMode))
                             return@post
                         }
                     }
@@ -247,7 +256,8 @@ fun Application.configureVpnRoutes(context: AppContext) {
                         )
                     }
 
-                    val routeMode = normalizeRouteMode(body.routeMode ?: body.mode ?: "CASCADE")
+                    var routeMode = requestedRouteMode
+                    var routeFallbackReason: String? = null
                     val exitRegion = body.exitRegion ?: body.region
                     val exitNode = body.exitNodeId?.takeIf { it.isNotBlank() }?.let { rawId ->
                         val nodeId = runCatching { UUID.fromString(rawId) }.getOrElse {
@@ -258,17 +268,25 @@ fun Application.configureVpnRoutes(context: AppContext) {
                     } ?: (context.nodes.pickNode(exitRegion)
                         ?: throw ApiException(HttpStatusCode.ServiceUnavailable, "NO_HEALTHY_NODES", "No healthy exit node available"))
 
-                    val hopSpecs = if (routeMode == "CASCADE") {
+                    val hopSpecs = if (requestedRouteMode == "CASCADE") {
                         val entryNode = context.nodes.pickEntryNode(exitNode)
-                            ?: throw ApiException(
-                                HttpStatusCode.ServiceUnavailable,
-                                "NO_ENTRY_NODES",
-                                "No healthy entry node available for cascade route"
+                        if (entryNode == null) {
+                            if (!context.config.cascadeFallbackToSingle) {
+                                throw ApiException(
+                                    HttpStatusCode.ServiceUnavailable,
+                                    "NO_ENTRY_NODES",
+                                    "No healthy entry node available for cascade route"
+                                )
+                            }
+                            routeMode = "SINGLE"
+                            routeFallbackReason = "NO_ENTRY_NODES"
+                            listOf(HopSpec(index = 0, role = "EXIT", node = exitNode))
+                        } else {
+                            listOf(
+                                HopSpec(index = 0, role = "ENTRY", node = entryNode),
+                                HopSpec(index = 1, role = "EXIT", node = exitNode)
                             )
-                        listOf(
-                            HopSpec(index = 0, role = "ENTRY", node = entryNode),
-                            HopSpec(index = 1, role = "EXIT", node = exitNode)
-                        )
+                        }
                     } else {
                         listOf(HopSpec(index = 0, role = "EXIT", node = exitNode))
                     }
@@ -372,7 +390,9 @@ fun Application.configureVpnRoutes(context: AppContext) {
                             targetType = "issued_config",
                             targetId = configId,
                             detailsJson = buildJsonObject {
+                                put("requestedRouteMode", requestedRouteMode)
                                 put("routeMode", routeMode)
+                                routeFallbackReason?.let { put("routeFallbackReason", it) }
                                 put("exitNodeId", exitNode.id.toString())
                                 provisionedHops.firstOrNull { it.spec.role == "ENTRY" }?.let {
                                     put("entryNodeId", it.spec.node.id.toString())
@@ -381,7 +401,12 @@ fun Application.configureVpnRoutes(context: AppContext) {
                             call = call
                         )
 
-                        call.respond(buildIssueResponse(context, issued))
+                        call.respond(
+                            buildIssueResponse(context, issued).copy(
+                                requestedRouteMode = requestedRouteMode,
+                                routeFallbackReason = routeFallbackReason
+                            )
+                        )
                     } catch (e: Exception) {
                         addedUsers.asReversed().forEach { (node, email) ->
                             runCatching { context.xray.removeUser(node, email) }
@@ -517,6 +542,40 @@ private data class ProvisionedHop(
     val vlessUuid: UUID,
     val flow: String?
 )
+
+private fun revokeIssuedConfig(context: AppContext, config: IssuedConfigEntity, reason: String) {
+    val hops = context.vpn.listConfigHops(config.id)
+    context.vpn.markRevoking(config.id)
+    if (hops.isNotEmpty()) {
+        hops.sortedByDescending { it.hopIndex }.forEach { hop ->
+            val clientId = hop.clientId
+                ?: throw ApiException(HttpStatusCode.InternalServerError, "CLIENT_NOT_FOUND", "Hop client is missing")
+            val client = context.vpn.findClientById(clientId)
+                ?: throw ApiException(HttpStatusCode.InternalServerError, "CLIENT_NOT_FOUND", "Client record missing")
+            val node = context.nodes.findById(hop.nodeId)
+                ?: throw ApiException(HttpStatusCode.InternalServerError, "NODE_NOT_FOUND", "Node record missing")
+            context.xray.removeUser(node, client.email)
+            context.vpn.revokeClient(client.id, reason)
+        }
+        context.vpn.markConfigHopsRevoked(config.id)
+        context.vpn.markRevoked(config.id)
+        return
+    }
+
+    val clientId = config.clientId
+    if (clientId == null) {
+        context.vpn.markRevoked(config.id)
+        return
+    }
+
+    val client = context.vpn.findClientById(clientId)
+        ?: throw ApiException(HttpStatusCode.InternalServerError, "CLIENT_NOT_FOUND", "Client record missing")
+    val node = context.nodes.findById(config.nodeId)
+        ?: throw ApiException(HttpStatusCode.InternalServerError, "NODE_NOT_FOUND", "Node record missing")
+    context.xray.removeUser(node, client.email)
+    context.vpn.revokeClient(client.id, reason)
+    context.vpn.markRevoked(config.id)
+}
 
 private fun normalizeRouteMode(raw: String): String {
     val normalized = raw.trim().uppercase()
