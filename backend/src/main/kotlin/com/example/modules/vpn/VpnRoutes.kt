@@ -295,7 +295,7 @@ fun Application.configureVpnRoutes(context: AppContext) {
                         throw ApiException(HttpStatusCode.Conflict, "ACTIVE_CONFIG_EXISTS", "Active config already exists")
                     }
 
-                    val flow = "xtls-rprx-vision"
+                    val flow: String? = null
                     val addedUsers = mutableListOf<Pair<NodeEntity, String>>()
                     val createdClients = mutableListOf<ClientEntity>()
                     val provisionedHops = mutableListOf<ProvisionedHop>()
