@@ -114,7 +114,7 @@ class NodeRepository(private val dsl: DSLContext) {
                     WHERE status = 'ACTIVE'
                     GROUP BY node_id
                 ) c ON c.node_id = n.id
-                WHERE n.status = 'ACTIVE' AND n.health = 'HEALTHY'
+                WHERE n.status = 'ACTIVE' AND n.health = 'HEALTHY' AND n.node_role IN ('EXIT', 'BOTH')
                 ORDER BY n.weight DESC, COALESCE(c.cnt, 0) ASC
                 LIMIT 1
                 """.trimIndent()
@@ -130,7 +130,7 @@ class NodeRepository(private val dsl: DSLContext) {
                     WHERE status = 'ACTIVE'
                     GROUP BY node_id
                 ) c ON c.node_id = n.id
-                WHERE n.status = 'ACTIVE' AND n.health = 'HEALTHY' AND n.region = ?
+                WHERE n.status = 'ACTIVE' AND n.health = 'HEALTHY' AND n.node_role IN ('EXIT', 'BOTH') AND n.region = ?
                 ORDER BY n.weight DESC, COALESCE(c.cnt, 0) ASC
                 LIMIT 1
                 """.trimIndent(),
