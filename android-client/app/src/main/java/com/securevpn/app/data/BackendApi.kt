@@ -92,10 +92,11 @@ class BackendApi(
     ): IssuedConfig {
         val session = ensureSession()
         val requestedRouteMode = routeMode?.normalizeRouteMode() ?: cachedDefaultRouteMode()
+        val rotateForRouteModeChange = prefs.getBoolean(KEY_ROUTE_MODE_CHANGE_REQUIRES_ROTATE, false)
         val body = JSONObject()
             .put("deviceId", session.deviceId)
             .put("routeMode", requestedRouteMode)
-            .put("forceRotate", forceRotate)
+            .put("forceRotate", forceRotate || rotateForRouteModeChange)
             .apply {
                 if (!region.isNullOrBlank()) put("region", region)
                 if (!exitNodeId.isNullOrBlank()) put("exitNodeId", exitNodeId)
@@ -117,6 +118,8 @@ class BackendApi(
             .putString(KEY_ACTIVE_ROUTE_MODE, issued.routeMode.normalizeRouteMode())
             .putString(KEY_ACTIVE_REQUESTED_ROUTE_MODE, issued.requestedRouteMode?.normalizeRouteMode() ?: requestedRouteMode)
             .putString(KEY_ACTIVE_ROUTE_FALLBACK_REASON, issued.routeFallbackReason)
+            .putInt(KEY_ACTIVE_CONFIG_SCHEMA_VERSION, ACTIVE_CONFIG_SCHEMA_VERSION)
+            .remove(KEY_ROUTE_MODE_CHANGE_REQUIRES_ROTATE)
             .apply()
         return issued
     }
@@ -125,10 +128,31 @@ class BackendApi(
         prefs.getString(KEY_ACTIVE_CLIENT_CONFIG_JSON, null)?.takeIf { it.isNotBlank() }
 
     fun cachedDefaultRouteMode(): String =
-        prefs.getString(KEY_DEFAULT_ROUTE_MODE, null)?.normalizeRouteMode() ?: "CASCADE"
+        prefs.getString(KEY_USER_ROUTE_MODE, null)?.normalizeRouteMode()
+            ?: prefs.getString(KEY_DEFAULT_ROUTE_MODE, null)?.normalizeRouteMode()
+            ?: "CASCADE"
+
+    fun isCascadeModeEnabled(): Boolean = cachedDefaultRouteMode() == "CASCADE"
+
+    fun setCascadeModeEnabled(enabled: Boolean) {
+        val nextRouteMode = if (enabled) "CASCADE" else "SINGLE"
+        if (cachedDefaultRouteMode() == nextRouteMode) return
+        prefs.edit()
+            .putString(KEY_USER_ROUTE_MODE, nextRouteMode)
+            .putBoolean(KEY_ROUTE_MODE_CHANGE_REQUIRES_ROTATE, true)
+            .remove(KEY_ACTIVE_CONFIG_ID)
+            .remove(KEY_ACTIVE_VLESS_URI)
+            .remove(KEY_ACTIVE_CLIENT_CONFIG_JSON)
+            .remove(KEY_ACTIVE_ROUTE_MODE)
+            .remove(KEY_ACTIVE_REQUESTED_ROUTE_MODE)
+            .remove(KEY_ACTIVE_ROUTE_FALLBACK_REASON)
+            .remove(KEY_ACTIVE_CONFIG_SCHEMA_VERSION)
+            .apply()
+    }
 
     fun activeConfigMatchesDefaultRouteMode(): Boolean {
         val activeConfigId = activeConfigId ?: return true
+        if (prefs.getInt(KEY_ACTIVE_CONFIG_SCHEMA_VERSION, 0) != ACTIVE_CONFIG_SCHEMA_VERSION) return false
         val requestedRouteMode = prefs.getString(KEY_ACTIVE_REQUESTED_ROUTE_MODE, null)?.normalizeRouteMode()
             ?: return true
         return activeConfigId.isNotBlank() && requestedRouteMode == cachedDefaultRouteMode()
@@ -535,6 +559,7 @@ class BackendApi(
             .remove(KEY_ACTIVE_ROUTE_MODE)
             .remove(KEY_ACTIVE_REQUESTED_ROUTE_MODE)
             .remove(KEY_ACTIVE_ROUTE_FALLBACK_REASON)
+            .remove(KEY_ACTIVE_CONFIG_SCHEMA_VERSION)
             .apply()
     }
 
@@ -549,6 +574,7 @@ class BackendApi(
             .remove(KEY_ACTIVE_ROUTE_MODE)
             .remove(KEY_ACTIVE_REQUESTED_ROUTE_MODE)
             .remove(KEY_ACTIVE_ROUTE_FALLBACK_REASON)
+            .remove(KEY_ACTIVE_CONFIG_SCHEMA_VERSION)
             .remove(KEY_TELEGRAM_ID)
             .remove(KEY_TELEGRAM_USERNAME)
             .remove(KEY_TELEGRAM_FIRST_NAME)
@@ -571,7 +597,11 @@ class BackendApi(
         private const val KEY_ACTIVE_ROUTE_MODE = "active_route_mode"
         private const val KEY_ACTIVE_REQUESTED_ROUTE_MODE = "active_requested_route_mode"
         private const val KEY_ACTIVE_ROUTE_FALLBACK_REASON = "active_route_fallback_reason"
+        private const val KEY_ACTIVE_CONFIG_SCHEMA_VERSION = "active_config_schema_version"
         private const val KEY_DEFAULT_ROUTE_MODE = "default_route_mode"
+        private const val KEY_USER_ROUTE_MODE = "user_route_mode"
+        private const val KEY_ROUTE_MODE_CHANGE_REQUIRES_ROTATE = "route_mode_change_requires_rotate"
+        private const val ACTIVE_CONFIG_SCHEMA_VERSION = 2
         private const val KEY_TELEGRAM_ID = "telegram_id"
         private const val KEY_TELEGRAM_USERNAME = "telegram_username"
         private const val KEY_TELEGRAM_FIRST_NAME = "telegram_first_name"

@@ -130,6 +130,7 @@ fun SovietVpnApp(
     var serverNodes by remember { mutableStateOf(ServerNodes) }
     var selectedServerId by rememberSaveable { mutableStateOf(ServerNodes.first().id) }
     var dnsCheck by rememberSaveable { mutableStateOf(true) }
+    var cascadeMode by rememberSaveable { mutableStateOf(api.isCascadeModeEnabled()) }
     var autoConnect by rememberSaveable { mutableStateOf(true) }
     var killSwitch by rememberSaveable { mutableStateOf(false) }
     var darkRoom by rememberSaveable { mutableStateOf(true) }
@@ -284,6 +285,7 @@ fun SovietVpnApp(
                     val apiNodes = bootstrap.nodes.mapIndexed { index, node -> node.toServerNode(index) }
                     showingTelegramConfigs = false
                     serverNodes = apiNodes
+                    cascadeMode = api.isCascadeModeEnabled()
                     quotaStatus = bootstrap.quota
                     serverNotification = bootstrap.notifications.firstOrNull() ?: serverNotification
                     if (apiNodes.none { it.id == selectedServerId }) {
@@ -399,7 +401,7 @@ fun SovietVpnApp(
     }
 
     suspend fun resolveVpnLaunchProfile(forceNew: Boolean = false): VpnLaunchProfile {
-        selectedServer.vlessUri?.takeIf { it.isNotBlank() }?.let {
+        if (showingTelegramConfigs) selectedServer.vlessUri?.takeIf { it.isNotBlank() }?.let {
             return VpnLaunchProfile(vlessUri = it, clientConfigJson = null)
         }
         var forceRotateForRouteMode = false
@@ -635,6 +637,41 @@ fun SovietVpnApp(
         )
     }
 
+    fun toggleCascadeMode() {
+        val nextEnabled = !cascadeMode
+        cascadeMode = nextEnabled
+        api.setCascadeModeEnabled(nextEnabled)
+        apiNotice = if (nextEnabled) {
+            "Каскадный режим включен"
+        } else {
+            "Каскадный режим выключен"
+        }
+        if (state == LinkState.On || state == LinkState.Paused) {
+            state = LinkState.Connecting
+            scope.launch {
+                runCatching {
+                    val policy = if (hasRoutingDraftChanges()) routingDraft else api.cachedRoutingPolicy()
+                    startTunnelWithConfig(policy, forceNewConfig = true)
+                }
+                    .onSuccess {
+                        state = LinkState.On
+                        serviceControlledState = true
+                        apiNotice = if (nextEnabled) {
+                            "VPN переведен в каскадный режим"
+                        } else {
+                            "VPN переведен на один узел"
+                        }
+                    }
+                    .onFailure { error ->
+                        runCatching { SingBoxTunnel(context).stop() }
+                        state = LinkState.Off
+                        serviceControlledState = false
+                        apiNotice = error.message?.take(90) ?: "Не удалось сменить режим VPN"
+                    }
+            }
+        }
+    }
+
     fun cycleConnection() {
         userTouchedConnection = true
         if (state == LinkState.Connecting) {
@@ -751,6 +788,7 @@ fun SovietVpnApp(
 
                     AppScreen.Settings -> SettingsScreen(
                         dnsCheck = dnsCheck,
+                        cascadeMode = cascadeMode,
                         autoConnect = autoConnect,
                         killSwitch = killSwitch,
                         darkRoom = darkRoom,
@@ -759,6 +797,7 @@ fun SovietVpnApp(
                         telegramAccount = telegramAccount,
                         telegramStatus = telegramNotice,
                         onDns = { dnsCheck = !dnsCheck },
+                        onCascade = ::toggleCascadeMode,
                         onAuto = { autoConnect = !autoConnect },
                         onKill = { killSwitch = !killSwitch },
                         onDark = { darkRoom = !darkRoom },
