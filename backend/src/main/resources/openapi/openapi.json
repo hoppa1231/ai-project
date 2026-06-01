@@ -507,7 +507,7 @@
           "region": { "type": "string", "nullable": true },
           "exitRegion": { "type": "string", "nullable": true },
           "exitNodeId": { "type": "string", "format": "uuid", "nullable": true },
-          "routeMode": { "type": "string", "enum": ["SINGLE", "CASCADE"], "default": "CASCADE" },
+          "routeMode": { "type": "string", "enum": ["SINGLE", "CASCADE"], "default": "SINGLE" },
           "mode": { "type": "string", "enum": ["SINGLE", "CASCADE"], "nullable": true },
           "ttlHours": { "type": "integer", "format": "int64", "nullable": true },
           "forceRotate": { "type": "boolean", "default": false }

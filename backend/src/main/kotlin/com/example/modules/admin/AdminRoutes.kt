@@ -26,6 +26,7 @@ import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import kotlinx.serialization.Serializable
 import org.jooq.exception.DataAccessException
+import java.security.MessageDigest
 import java.util.UUID
 
 @Serializable
@@ -139,6 +140,7 @@ data class NodeClientInventoryResponse(
     val controlPlaneClientId: String?,
     val userId: String?,
     val deviceId: String?,
+    val deviceShortName: String?,
     val lastSyncedAt: String
 )
 
@@ -584,9 +586,41 @@ private fun toNodeClientResponse(
         controlPlaneClientId = controlPlaneClient?.id?.toString(),
         userId = controlPlaneClient?.userId?.toString(),
         deviceId = controlPlaneClient?.deviceId?.toString(),
+        deviceShortName = controlPlaneClient?.deviceId?.let(::deviceShortName),
         lastSyncedAt = client.lastSyncedAt.toString()
     )
 }
+
+private fun deviceShortName(deviceId: UUID): String {
+    val bytes = MessageDigest.getInstance("SHA-256")
+        .digest(deviceId.toString().toByteArray(Charsets.UTF_8))
+    val color = deviceNameColors[bytes[0].toInt().and(0xff) % deviceNameColors.size]
+    val noun = deviceNameNouns[bytes[1].toInt().and(0xff) % deviceNameNouns.size]
+    val number = (((bytes[2].toInt().and(0xff) shl 8) + bytes[3].toInt().and(0xff)) % 1000)
+    return "$color-$noun-%03d".format(number)
+}
+
+private val deviceNameColors = listOf(
+    "red",
+    "blue",
+    "green",
+    "gold",
+    "silver",
+    "black",
+    "white",
+    "violet"
+)
+
+private val deviceNameNouns = listOf(
+    "relay",
+    "signal",
+    "beacon",
+    "switch",
+    "rotor",
+    "valve",
+    "anchor",
+    "circuit"
+)
 
 private fun toAdminUserResponse(user: UserEntity): AdminUserResponse {
     return AdminUserResponse(
@@ -781,6 +815,7 @@ private val adminPanelHtml = """
     th, td { padding: 10px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
     th { color: var(--muted); font-size: 12px; text-transform: uppercase; }
     td.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .total-gb-input { width: 78px; max-width: 100%; }
     .status { font-weight: 700; }
     .ok { color: var(--ok); }
     .bad { color: var(--bad); }
@@ -940,7 +975,7 @@ private val adminPanelHtml = """
       <h2 id="clientsTitle">Node clients</h2>
       <table>
         <thead>
-          <tr><th>Email</th><th>Enabled</th><th>Total GB</th><th>Used GB</th><th>Actions</th></tr>
+          <tr><th>Email</th><th>Device</th><th>Enabled</th><th>Total GB</th><th>Used GB</th><th>Actions</th></tr>
         </thead>
         <tbody id="clientsBody"></tbody>
       </table>
@@ -1174,8 +1209,9 @@ private val adminPanelHtml = """
         const used = Number(client.upBytes || 0) + Number(client.downBytes || 0);
         tr.innerHTML =
           "<td data-label='Email'>" + esc(client.email) + "</td>" +
+          "<td data-label='Device'><code>" + esc(client.deviceShortName || "") + "</code></td>" +
           "<td data-label='Enabled'>" + client.enabled + "</td>" +
-          "<td data-label='Total GB'><input data-field='totalGb' type='number' min='0' value='" + gb(client.totalBytes) + "'></td>" +
+          "<td data-label='Total GB'><input class='total-gb-input' data-field='totalGb' type='number' min='0' value='" + gb(client.totalBytes) + "'></td>" +
           "<td data-label='Used GB'>" + gb(used) + "</td>" +
           "<td data-label='Actions' class='actions'></td>";
         const save = document.createElement("button");

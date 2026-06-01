@@ -426,7 +426,7 @@ fun SettingsScreen(
                         SettingsRow("1.1", "Шифръ канала", "AES-256", text = text, soft = soft)
                         SettingsRow("1.2", "Протоколъ", "VLESS", text = text, soft = soft)
                         SettingsRow("1.3", "DNS-проверка", if (dnsCheck) "включено" else "выключено", checked = dnsCheck, onToggle = onDns, text = text, soft = soft, night = darkRoom)
-                        SettingsRow("1.4", "Каскадный режимъ", if (cascadeMode) "включено · черезъ два узла" else "выключено · один узелъ", checked = cascadeMode, onToggle = onCascade, text = text, soft = soft, night = darkRoom)
+                        SettingsRow("1.4", "Каскадный режимъ · БЕТА", if (cascadeMode) "включено · черезъ два узла" else "выключено · один узелъ", checked = cascadeMode, onToggle = onCascade, text = text, soft = soft, night = darkRoom)
                     }
                 }
                 item {

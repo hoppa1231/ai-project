@@ -130,7 +130,7 @@ class BackendApi(
     fun cachedDefaultRouteMode(): String =
         prefs.getString(KEY_USER_ROUTE_MODE, null)?.normalizeRouteMode()
             ?: prefs.getString(KEY_DEFAULT_ROUTE_MODE, null)?.normalizeRouteMode()
-            ?: "CASCADE"
+            ?: "SINGLE"
 
     fun isCascadeModeEnabled(): Boolean = cachedDefaultRouteMode() == "CASCADE"
 
@@ -323,8 +323,8 @@ class BackendApi(
         val json = JSONObject(response)
         val previousRouteMode = prefs.getString(KEY_DEFAULT_ROUTE_MODE, null)?.normalizeRouteMode()
         val settings = ClientSettings(
-            defaultRouteMode = json.optString("defaultRouteMode", "CASCADE").normalizeRouteMode(),
-            cascadeEnabled = json.optBoolean("cascadeEnabled", true),
+            defaultRouteMode = json.optString("defaultRouteMode", "SINGLE").normalizeRouteMode(),
+            cascadeEnabled = json.optBoolean("cascadeEnabled", false),
             cascadeFallbackToSingle = json.optBoolean("cascadeFallbackToSingle", true),
             clientConfigPreferred = json.optBoolean("clientConfigPreferred", true)
         )
@@ -625,8 +625,8 @@ data class ClientSettings(
 ) {
     companion object {
         fun default(): ClientSettings = ClientSettings(
-            defaultRouteMode = "CASCADE",
-            cascadeEnabled = true,
+            defaultRouteMode = "SINGLE",
+            cascadeEnabled = false,
             cascadeFallbackToSingle = true,
             clientConfigPreferred = true
         )
@@ -788,7 +788,7 @@ private fun JSONObject.optStringOrNull(name: String): String? {
 
 private fun String.normalizeRouteMode(): String {
     val normalized = trim().uppercase()
-    return if (normalized == "SINGLE" || normalized == "CASCADE") normalized else "CASCADE"
+    return if (normalized == "SINGLE" || normalized == "CASCADE") normalized else "SINGLE"
 }
 
 private fun JSONObject.optGb(gbName: String, bytesName: String): Double {

@@ -64,7 +64,7 @@ fun Application.loadAppConfig(): AppConfig {
             ?.trim()
             ?.uppercase()
             ?.takeIf { it == "SINGLE" || it == "CASCADE" }
-            ?: "CASCADE",
+            ?: "SINGLE",
         cascadeFallbackToSingle = cfg.propertyOrNull("app.vpn.cascadeFallbackToSingle")?.getString()
             ?.toBooleanStrictOrNull()
             ?: true,

@@ -127,8 +127,8 @@ fun SovietVpnApp(
     var state by rememberSaveable { mutableStateOf(LinkState.Off) }
     var serviceControlledState by rememberSaveable { mutableStateOf(false) }
     var trafficText by rememberSaveable { mutableStateOf("") }
-    var serverNodes by remember { mutableStateOf(ServerNodes) }
-    var selectedServerId by rememberSaveable { mutableStateOf(ServerNodes.first().id) }
+    var serverNodes by remember { mutableStateOf(emptyList<ServerNode>()) }
+    var selectedServerId by rememberSaveable { mutableStateOf("") }
     var dnsCheck by rememberSaveable { mutableStateOf(true) }
     var cascadeMode by rememberSaveable { mutableStateOf(api.isCascadeModeEnabled()) }
     var autoConnect by rememberSaveable { mutableStateOf(true) }
@@ -158,6 +158,17 @@ fun SovietVpnApp(
             apiNotice = "Разрешение на уведомления не выдано"
         }
     }
+    val emptyServer = remember {
+        ServerNode(
+            id = "empty",
+            city = "НЕТ СВЯЗИ",
+            node = "УЗЛЫ НЕ ЗАГРУЖЕНЫ",
+            region = "",
+            ping = 0,
+            load = 0,
+            available = false
+        )
+    }
     val emptyTelegramServer = remember {
         ServerNode(
             id = "telegram-empty",
@@ -165,12 +176,13 @@ fun SovietVpnApp(
             node = "TELEGRAM НЕ НАШЕЛ ПРИВЯЗАННЫХ ЗАПИСЕЙ",
             region = "",
             ping = 0,
-            load = 0
+            load = 0,
+            available = false
         )
     }
     val selectedServer = serverNodes.firstOrNull { it.id == selectedServerId }
         ?: serverNodes.firstOrNull()
-        ?: if (showingTelegramConfigs) emptyTelegramServer else ServerNodes.first()
+        ?: if (showingTelegramConfigs) emptyTelegramServer else emptyServer
     lateinit var startConnection: () -> Unit
     val vpnPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -243,6 +255,14 @@ fun SovietVpnApp(
 
     fun refreshBootstrap() {
         scope.launch {
+            if (!context.hasInternetConnection()) {
+                serverNodes = emptyList()
+                if (!userTouchedConnection && !serviceControlledState) {
+                    state = LinkState.Off
+                }
+                apiNotice = "Нет интернета. Проверьте подключение и попробуйте снова"
+                return@launch
+            }
             runCatching { api.loadCurrentQuota() }
                 .onSuccess { quotaStatus = it }
             runCatching { api.loadCurrentNotifications() }
@@ -294,8 +314,13 @@ fun SovietVpnApp(
                     if (!userTouchedConnection && !serviceControlledState) state = LinkState.Off
                 }
                 .onFailure { error ->
+                    serverNodes = emptyList()
                     if (!userTouchedConnection && !serviceControlledState) state = LinkState.Off
-                    apiNotice = error.message?.take(90) ?: "API недоступен"
+                    apiNotice = if (!context.hasInternetConnection()) {
+                        "Нет интернета. Проверьте подключение и попробуйте снова"
+                    } else {
+                        error.message?.take(90) ?: "API недоступен"
+                    }
                 }
         }
     }
@@ -479,7 +504,15 @@ fun SovietVpnApp(
 
     startConnection = {
         autoConfigRetryCount = 0
-        if (showingTelegramConfigs && !selectedServer.available) {
+        if (!context.hasInternetConnection()) {
+            state = LinkState.Off
+            serviceControlledState = false
+            apiNotice = "Нет интернета. VPN не запущен"
+        } else if (!selectedServer.available || selectedServer.id == "empty") {
+            state = LinkState.Off
+            serviceControlledState = false
+            apiNotice = "Нет доступного VPN-узла. Проверьте подключение"
+        } else if (showingTelegramConfigs && !selectedServer.available) {
             state = LinkState.Off
             apiNotice = "Выбранный Telegram-конфиг отключен на ноде"
         } else {
@@ -682,6 +715,15 @@ fun SovietVpnApp(
             return
         }
         if (state == LinkState.Off) {
+            if (!context.hasInternetConnection()) {
+                apiNotice = "Нет интернета. Проверьте подключение и попробуйте снова"
+                return
+            }
+            if (!selectedServer.available || selectedServer.id == "empty") {
+                apiNotice = "Нет доступного VPN-узла. Проверьте подключение"
+                refreshBootstrap()
+                return
+            }
             if (showingTelegramConfigs && !selectedServer.available) {
                 apiNotice = "Выбранный Telegram-конфиг отключен на ноде"
                 return

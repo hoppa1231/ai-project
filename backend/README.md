@@ -42,7 +42,7 @@ docker compose -p vpn-control-plane -f docker-compose.prod.yml up -d --build --r
 - `DB_URL`, `DB_USER`, `DB_PASSWORD`
 - `JWT_SECRET`, `HASH_PEPPER`
 - `XRAY_MODE=stub|grpc`
-- `VPN_DEFAULT_ROUTE_MODE=CASCADE|SINGLE` (default `CASCADE`)
+- `VPN_DEFAULT_ROUTE_MODE=SINGLE|CASCADE` (default `SINGLE`; `CASCADE` is beta)
 - `VPN_CASCADE_FALLBACK_TO_SINGLE=true|false` (default `true`)
 - `app.quota.freeGbPerMonth` in `application.yaml` (default `10`)
 
@@ -77,7 +77,7 @@ docker compose -p vpn-control-plane -f docker-compose.prod.yml up -d --build --r
 - Guest user can consume free monthly quota without registration.
 - Additional purchased quota can be granted only to `REGISTERED` users.
 - Current Xray integration mode is `stub`; `grpc` mode is scaffolded.
-- Android clients read `/client/settings` before issuing configs. With `VPN_DEFAULT_ROUTE_MODE=CASCADE`, `/vpn/issue` provisions ENTRY and EXIT hops when a healthy entry node exists.
+- Android clients read `/client/settings` before issuing configs. With beta `VPN_DEFAULT_ROUTE_MODE=CASCADE`, `/vpn/issue` provisions ENTRY and EXIT hops when a healthy entry node exists.
 - If no entry node is available and `VPN_CASCADE_FALLBACK_TO_SINGLE=true`, `/vpn/issue` returns `requestedRouteMode=CASCADE`, `routeMode=SINGLE`, and `routeFallbackReason=NO_ENTRY_NODES`.
 - On startup the backend creates an admin user. Use `ADMIN_EMAIL` and `ADMIN_PASSWORD` to override defaults.
 - Synthetic seed data is disabled by default. Set `SEED_SYNTHETIC=true` only for local/demo data.

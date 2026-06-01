@@ -19,7 +19,7 @@ Then run backend locally:
 - `DB_URL`, `DB_USER`, `DB_PASSWORD`
 - `JWT_SECRET`, `HASH_PEPPER`
 - `XRAY_MODE=stub|grpc`
-- `VPN_DEFAULT_ROUTE_MODE=CASCADE|SINGLE` (default `CASCADE`)
+- `VPN_DEFAULT_ROUTE_MODE=SINGLE|CASCADE` (default `SINGLE`; `CASCADE` is beta)
 - `VPN_CASCADE_FALLBACK_TO_SINGLE=true|false` (default `true`)
 - `app.quota.freeGbPerMonth` in `application.yaml` (default `10`)
 
@@ -54,4 +54,4 @@ Then run backend locally:
 - Additional purchased quota can be granted only to `REGISTERED` users.
 - Node client sync records Xray traffic deltas into quota usage, so config rotation does not reset monthly usage.
 - Current Xray integration mode is `stub`; `grpc` mode is scaffolded.
-- Android clients use `/client/settings` to choose `CASCADE` or `SINGLE`; CASCADE responses include hop metadata and a server-rendered sing-box client config.
+- Android clients use `/client/settings` to choose `SINGLE` or beta `CASCADE`; CASCADE responses include hop metadata and a server-rendered sing-box client config.
