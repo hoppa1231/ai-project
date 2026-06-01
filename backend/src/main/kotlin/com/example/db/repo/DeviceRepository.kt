@@ -126,6 +126,36 @@ class DeviceRepository(private val dsl: DSLContext) {
         )?.let(::mapDetails)
     }
 
+    fun findLatestByFingerprintHash(fingerprintHash: String): DeviceDetailsEntity? {
+        return dsl.fetchOne(
+            """
+            SELECT id, user_id, device_fingerprint_hash, device_name, platform, app_version,
+                   status, bound_at, last_seen_at
+            FROM devices
+            WHERE device_fingerprint_hash = ?
+            ORDER BY last_seen_at DESC NULLS LAST, bound_at DESC
+            LIMIT 1
+            """.trimIndent(),
+            fingerprintHash
+        )?.let(::mapDetails)
+    }
+
+    fun findLatestByFingerprintHashPrefix(prefix: String): DeviceDetailsEntity? {
+        val normalized = prefix.trim().lowercase().filter { it in 'a'..'f' || it.isDigit() }
+        if (normalized.length < 8) return null
+        return dsl.fetchOne(
+            """
+            SELECT id, user_id, device_fingerprint_hash, device_name, platform, app_version,
+                   status, bound_at, last_seen_at
+            FROM devices
+            WHERE device_fingerprint_hash LIKE ?
+            ORDER BY last_seen_at DESC NULLS LAST, bound_at DESC
+            LIMIT 1
+            """.trimIndent(),
+            "$normalized%"
+        )?.let(::mapDetails)
+    }
+
     fun findDetailsByCompactIdPrefix(prefix: String): DeviceDetailsEntity? {
         val normalized = prefix.trim().lowercase().filter { it.isLetterOrDigit() }
         if (normalized.length < 8) return null

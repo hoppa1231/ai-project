@@ -13,7 +13,7 @@ class VpnRepository(private val dsl: DSLContext) {
     fun findByIdempotency(userId: UUID, idempotencyKey: String): IssuedConfigEntity? {
         val rec = dsl.fetchOne(
             """
-            SELECT id, user_id, device_id, node_id, client_id, route_mode::text AS route_mode, status,
+            SELECT id, user_id, device_id, device_fingerprint_hash, node_id, client_id, route_mode::text AS route_mode, status,
                    vless_uri, config_json::text AS config_json,
                    expires_at, issued_at, revoked_at
             FROM issued_configs
@@ -29,7 +29,7 @@ class VpnRepository(private val dsl: DSLContext) {
     fun findActiveByDevice(userId: UUID, deviceId: UUID): IssuedConfigEntity? {
         val rec = dsl.fetchOne(
             """
-            SELECT id, user_id, device_id, node_id, client_id, route_mode::text AS route_mode, status,
+            SELECT id, user_id, device_id, device_fingerprint_hash, node_id, client_id, route_mode::text AS route_mode, status,
                    vless_uri, config_json::text AS config_json,
                    expires_at, issued_at, revoked_at
             FROM issued_configs
@@ -42,11 +42,48 @@ class VpnRepository(private val dsl: DSLContext) {
         return mapConfig(rec)
     }
 
+    fun findActiveByDeviceIdentity(userId: UUID, deviceId: UUID, deviceFingerprintHash: String?): IssuedConfigEntity? {
+        val rec = if (deviceFingerprintHash.isNullOrBlank()) {
+            dsl.fetchOne(
+                """
+                SELECT id, user_id, device_id, device_fingerprint_hash, node_id, client_id, route_mode::text AS route_mode, status,
+                       vless_uri, config_json::text AS config_json,
+                       expires_at, issued_at, revoked_at
+                FROM issued_configs
+                WHERE user_id = ? AND device_id = ? AND status = 'ISSUED'
+                ORDER BY issued_at DESC NULLS LAST
+                LIMIT 1
+                """.trimIndent(),
+                userId,
+                deviceId
+            )
+        } else {
+            dsl.fetchOne(
+                """
+                SELECT id, user_id, device_id, device_fingerprint_hash, node_id, client_id, route_mode::text AS route_mode, status,
+                       vless_uri, config_json::text AS config_json,
+                       expires_at, issued_at, revoked_at
+                FROM issued_configs
+                WHERE user_id = ?
+                  AND status = 'ISSUED'
+                  AND (device_id = ? OR device_fingerprint_hash = ?)
+                ORDER BY issued_at DESC NULLS LAST
+                LIMIT 1
+                """.trimIndent(),
+                userId,
+                deviceId,
+                deviceFingerprintHash
+            )
+        } ?: return null
+
+        return mapConfig(rec)
+    }
+
     fun listConfigs(userId: UUID, deviceId: UUID? = null): List<IssuedConfigEntity> {
         val records = if (deviceId == null) {
             dsl.fetch(
                 """
-                SELECT id, user_id, device_id, node_id, client_id, route_mode::text AS route_mode, status,
+                SELECT id, user_id, device_id, device_fingerprint_hash, node_id, client_id, route_mode::text AS route_mode, status,
                        vless_uri, config_json::text AS config_json,
                        expires_at, issued_at, revoked_at
                 FROM issued_configs
@@ -58,7 +95,7 @@ class VpnRepository(private val dsl: DSLContext) {
         } else {
             dsl.fetch(
                 """
-                SELECT id, user_id, device_id, node_id, client_id, route_mode::text AS route_mode, status,
+                SELECT id, user_id, device_id, device_fingerprint_hash, node_id, client_id, route_mode::text AS route_mode, status,
                        vless_uri, config_json::text AS config_json,
                        expires_at, issued_at, revoked_at
                 FROM issued_configs
@@ -76,6 +113,7 @@ class VpnRepository(private val dsl: DSLContext) {
     fun insertProvisioning(
         userId: UUID,
         deviceId: UUID,
+        deviceFingerprintHash: String?,
         nodeId: UUID,
         idempotencyKey: String,
         expiresAt: Instant,
@@ -84,14 +122,15 @@ class VpnRepository(private val dsl: DSLContext) {
         val rec = dsl.fetchOne(
             """
             INSERT INTO issued_configs (
-                user_id, device_id, node_id, idempotency_key,
+                user_id, device_id, device_fingerprint_hash, node_id, idempotency_key,
                 route_mode, status, expires_at
             )
-            VALUES (?, ?, ?, ?, ?::config_route_mode, 'PROVISIONING', ?::timestamptz)
+            VALUES (?, ?, ?, ?, ?, ?::config_route_mode, 'PROVISIONING', ?::timestamptz)
             RETURNING id
             """.trimIndent(),
             userId,
             deviceId,
+            deviceFingerprintHash,
             nodeId,
             idempotencyKey,
             routeMode,
@@ -104,6 +143,7 @@ class VpnRepository(private val dsl: DSLContext) {
     fun createClient(
         userId: UUID,
         deviceId: UUID,
+        deviceFingerprintHash: String?,
         nodeId: UUID,
         email: String,
         vlessUuid: UUID,
@@ -113,14 +153,15 @@ class VpnRepository(private val dsl: DSLContext) {
         val rec = dsl.fetchOne(
             """
             INSERT INTO clients (
-                user_id, device_id, node_id, xray_email,
+                user_id, device_id, device_fingerprint_hash, node_id, xray_email,
                 vless_uuid, flow, status, expires_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', ?::timestamptz)
-            RETURNING id, user_id, device_id, node_id, xray_email, vless_uuid, status, flow
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?::timestamptz)
+            RETURNING id, user_id, device_id, device_fingerprint_hash, node_id, xray_email, vless_uuid, status, flow
             """.trimIndent(),
             userId,
             deviceId,
+            deviceFingerprintHash,
             nodeId,
             email,
             vlessUuid,
@@ -207,7 +248,7 @@ class VpnRepository(private val dsl: DSLContext) {
     fun findConfigById(userId: UUID, configId: UUID): IssuedConfigEntity? {
         val rec = dsl.fetchOne(
             """
-            SELECT id, user_id, device_id, node_id, client_id, route_mode::text AS route_mode, status,
+            SELECT id, user_id, device_id, device_fingerprint_hash, node_id, client_id, route_mode::text AS route_mode, status,
                    vless_uri, config_json::text AS config_json,
                    expires_at, issued_at, revoked_at
             FROM issued_configs
@@ -238,7 +279,7 @@ class VpnRepository(private val dsl: DSLContext) {
     fun findClientById(clientId: UUID): ClientEntity? {
         val rec = dsl.fetchOne(
             """
-            SELECT id, user_id, device_id, node_id, xray_email, vless_uuid, status, flow
+            SELECT id, user_id, device_id, device_fingerprint_hash, node_id, xray_email, vless_uuid, status, flow
             FROM clients
             WHERE id = ?
             """.trimIndent(),
@@ -251,7 +292,7 @@ class VpnRepository(private val dsl: DSLContext) {
     fun findClientByNodeAndEmail(nodeId: UUID, email: String): ClientEntity? {
         val rec = dsl.fetchOne(
             """
-            SELECT id, user_id, device_id, node_id, xray_email, vless_uuid, status, flow
+            SELECT id, user_id, device_id, device_fingerprint_hash, node_id, xray_email, vless_uuid, status, flow
             FROM clients
             WHERE node_id = ? AND xray_email = ?
             """.trimIndent(),
@@ -265,7 +306,7 @@ class VpnRepository(private val dsl: DSLContext) {
     fun findClientsByEmail(email: String): List<ClientEntity> {
         return dsl.fetch(
             """
-            SELECT id, user_id, device_id, node_id, xray_email, vless_uuid, status, flow
+            SELECT id, user_id, device_id, device_fingerprint_hash, node_id, xray_email, vless_uuid, status, flow
             FROM clients
             WHERE xray_email = ?
             ORDER BY id DESC
@@ -327,6 +368,7 @@ class VpnRepository(private val dsl: DSLContext) {
             id = rec.get("id", UUID::class.java)!!,
             userId = rec.get("user_id", UUID::class.java)!!,
             deviceId = rec.get("device_id", UUID::class.java)!!,
+            deviceFingerprintHash = rec.get("device_fingerprint_hash", String::class.java),
             nodeId = rec.get("node_id", UUID::class.java)!!,
             clientId = rec.get("client_id", UUID::class.java),
             routeMode = rec.get("route_mode", String::class.java) ?: "SINGLE",
@@ -360,6 +402,7 @@ class VpnRepository(private val dsl: DSLContext) {
             id = rec.get("id", UUID::class.java)!!,
             userId = rec.get("user_id", UUID::class.java)!!,
             deviceId = rec.get("device_id", UUID::class.java)!!,
+            deviceFingerprintHash = rec.get("device_fingerprint_hash", String::class.java),
             nodeId = rec.get("node_id", UUID::class.java)!!,
             email = rec.get("xray_email", String::class.java)!!,
             vlessUuid = rec.get("vless_uuid", UUID::class.java)!!,

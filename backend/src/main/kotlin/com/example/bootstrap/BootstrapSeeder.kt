@@ -68,13 +68,23 @@ object BootstrapSeeder {
                 val configId = context.vpn.insertProvisioning(
                     userId = user.id,
                     deviceId = device.id,
+                    deviceFingerprintHash = device.fingerprintHash,
                     nodeId = node.id,
                     idempotencyKey = "bootstrap-seed-${index + 1}",
                     expiresAt = expiresAt
                 )
                 val vlessUuid = UUID.nameUUIDFromBytes("seed-vless-${index + 1}".toByteArray())
                 val emailTag = "seed_${index + 1}@cp.local"
-                val client = context.vpn.createClient(user.id, device.id, node.id, emailTag, vlessUuid, flow, expiresAt)
+                val client = context.vpn.createClient(
+                    user.id,
+                    device.id,
+                    device.fingerprintHash,
+                    node.id,
+                    emailTag,
+                    vlessUuid,
+                    flow,
+                    expiresAt
+                )
                 val policy = context.policies.getCurrent(user.id) ?: error("missing policy for seeded user")
                 val rendered = VpnConfigRenderer.render(node, vlessUuid, flow, policy)
                 context.vpn.finalizeIssued(configId, client.id, rendered.vlessUri, rendered.configJson, rendered.hash, Instant.now())

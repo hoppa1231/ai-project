@@ -139,6 +139,7 @@ data class NodeClientInventoryResponse(
     val controlPlaneClientId: String?,
     val userId: String?,
     val deviceId: String?,
+    val deviceFingerprintHash: String?,
     val deviceName: String?,
     val lastSyncedAt: String
 )
@@ -565,7 +566,9 @@ private fun toNodeClientResponse(
     client: com.example.db.NodeClientInventoryEntity
 ): NodeClientInventoryResponse {
     val controlPlaneClient = context.vpn.findClientByNodeAndEmail(client.nodeId, client.email)
-    val device = controlPlaneClient?.deviceId?.let(context.devices::findDetailsById)
+    val device = controlPlaneClient?.deviceFingerprintHash
+        ?.let(context.devices::findLatestByFingerprintHash)
+        ?: controlPlaneClient?.deviceId?.let(context.devices::findDetailsById)
     return NodeClientInventoryResponse(
         id = client.id.toString(),
         nodeId = client.nodeId.toString(),
@@ -586,6 +589,7 @@ private fun toNodeClientResponse(
         controlPlaneClientId = controlPlaneClient?.id?.toString(),
         userId = controlPlaneClient?.userId?.toString(),
         deviceId = controlPlaneClient?.deviceId?.toString(),
+        deviceFingerprintHash = controlPlaneClient?.deviceFingerprintHash,
         deviceName = device?.deviceName,
         lastSyncedAt = client.lastSyncedAt.toString()
     )
@@ -653,14 +657,15 @@ private fun resolveUserDevices(context: AppContext, query: String): ResolvedUser
         )
     }
 
-    val devicePrefix = configEmailDevicePrefix(query)
-    if (devicePrefix != null) {
-        val device = context.devices.findDetailsByCompactIdPrefix(devicePrefix)
+    val deviceIdentityPrefix = configEmailDevicePrefix(query)
+    if (deviceIdentityPrefix != null) {
+        val device = context.devices.findLatestByFingerprintHashPrefix(deviceIdentityPrefix)
+            ?: context.devices.findDetailsByCompactIdPrefix(deviceIdentityPrefix)
         if (device != null) {
             return ResolvedUserDevices(
                 user = context.users.findById(device.userId),
                 devices = listOf(device),
-                matchedBy = "config_email_device_prefix"
+                matchedBy = "config_email_device_identity_prefix"
             )
         }
     }

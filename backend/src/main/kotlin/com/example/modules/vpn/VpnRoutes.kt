@@ -221,7 +221,7 @@ fun Application.configureVpnRoutes(context: AppContext) {
                         return@post
                     }
 
-                    val active = context.vpn.findActiveByDevice(userId, deviceId)
+                    val active = context.vpn.findActiveByDeviceIdentity(userId, deviceId, device.fingerprintHash)
                     if (active != null) {
                         if (body.forceRotate) {
                             try {
@@ -286,6 +286,7 @@ fun Application.configureVpnRoutes(context: AppContext) {
                         context.vpn.insertProvisioning(
                             userId = userId,
                             deviceId = deviceId,
+                            deviceFingerprintHash = device.fingerprintHash,
                             nodeId = exitNode.id,
                             idempotencyKey = idempotencyKey,
                             expiresAt = expiresAt,
@@ -301,7 +302,7 @@ fun Application.configureVpnRoutes(context: AppContext) {
                     val provisionedHops = mutableListOf<ProvisionedHop>()
                     try {
                         hopSpecs.forEach { spec ->
-                            val email = clientEmail(userId, deviceId, configId, spec.role, spec.index)
+                            val email = clientEmail(userId, device.fingerprintHash, configId, spec.role, spec.index)
                             val vlessUuid = UUID.randomUUID()
                             context.xray.addUser(
                                 node = spec.node,
@@ -319,6 +320,7 @@ fun Application.configureVpnRoutes(context: AppContext) {
                             val client = context.vpn.createClient(
                                 userId = userId,
                                 deviceId = deviceId,
+                                deviceFingerprintHash = device.fingerprintHash,
                                 nodeId = spec.node.id,
                                 email = email,
                                 vlessUuid = vlessUuid,
@@ -617,9 +619,9 @@ private fun normalizeRouteMode(raw: String): String {
     throw ApiException(HttpStatusCode.BadRequest, "INVALID_ROUTE_MODE", "routeMode must be SINGLE or CASCADE")
 }
 
-private fun clientEmail(userId: UUID, deviceId: UUID, configId: UUID, role: String, hopIndex: Int): String {
+private fun clientEmail(userId: UUID, deviceFingerprintHash: String, configId: UUID, role: String, hopIndex: Int): String {
     val userPart = userId.toString().replace("-", "").take(8)
-    val devicePart = deviceId.toString().replace("-", "").take(8)
+    val devicePart = deviceFingerprintHash.take(8)
     val configPart = configId.toString().replace("-", "").take(8)
     return "u_$userPart.d_$devicePart.c_$configPart.h_${hopIndex}_${role.lowercase()}@cp.local"
 }

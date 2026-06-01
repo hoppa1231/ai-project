@@ -2,6 +2,7 @@ package com.securevpn.app.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.provider.Settings
 import com.securevpn.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -15,8 +16,9 @@ class BackendApi(
     context: Context,
     apiBaseUrl: String = BuildConfig.API_BASE_URL
 ) {
+    private val appContext = context.applicationContext
     private val prefs: SharedPreferences =
-        context.applicationContext.getSharedPreferences("securevpn_api", Context.MODE_PRIVATE)
+        appContext.getSharedPreferences("securevpn_api", Context.MODE_PRIVATE)
     private val baseUrl = apiBaseUrl.trimEnd('/')
 
     suspend fun bootstrap(): VpnBootstrap {
@@ -546,7 +548,9 @@ class BackendApi(
     private fun getOrCreateDeviceFingerprint(): String {
         val existing = prefs.getString(KEY_DEVICE_FINGERPRINT, null)
         if (!existing.isNullOrBlank()) return existing
-        val created = "android-${UUID.randomUUID()}"
+        val androidId = Settings.Secure.getString(appContext.contentResolver, Settings.Secure.ANDROID_ID)
+            ?.takeIf { it.isNotBlank() && it != "9774d56d682e549c" }
+        val created = "android-${androidId ?: UUID.randomUUID()}"
         prefs.edit().putString(KEY_DEVICE_FINGERPRINT, created).apply()
         return created
     }
