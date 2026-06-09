@@ -1,6 +1,6 @@
 # VPN Control Plane (MVP)
 
-Kotlin + Ktor backend for VPN control-plane with PostgreSQL, Flyway, JWT auth, device binding, guest-first onboarding and monthly quota management.
+Kotlin + Ktor backend for VPN control-plane with PostgreSQL, Flyway, JWT auth, device binding, guest-first onboarding and monthly quota management
 
 ## Quick start (dev)
 
