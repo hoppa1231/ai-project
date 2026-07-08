@@ -16,18 +16,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Surface
@@ -45,7 +38,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
@@ -67,7 +59,6 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import kotlin.math.abs
-import kotlin.math.min
 
 class MainActivity : ComponentActivity() {
     private val telegramAuthEvents = MutableSharedFlow<TelegramAuthData>(replay = 1)
@@ -388,7 +379,7 @@ fun SovietVpnApp(
             return
         }
         telegramNotice = "открываем Telegram..."
-        val webLoginUrl = Uri.parse("${BuildConfig.API_BASE_URL}/auth/telegram/login")
+        val webLoginUrl = Uri.parse("${BuildConfig.API_BASE_URL}/auth/telegram/mobile-login")
             .buildUpon()
             .appendQueryParameter("return_to", "securevpn://telegram-auth")
             .build()
@@ -763,167 +754,139 @@ fun SovietVpnApp(
         screen = AppScreen.Settings
     }
 
-    BoxWithConstraints(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(if (darkRoom) BurgundyDeep else Paper)
+            .pointerInput(screen) {
+                var dragX = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { dragX = 0f },
+                    onHorizontalDrag = { _, dragAmount -> dragX += dragAmount },
+                    onDragEnd = {
+                        if (abs(dragX) > 70f) {
+                            screen = screen.swipeTarget(if (dragX < 0f) 1 else -1)
+                        }
+                        dragX = 0f
+                    },
+                    onDragCancel = { dragX = 0f }
+                )
+            }
     ) {
-        val scale = min(maxWidth.value / 412f, maxHeight.value / 892f).coerceIn(0.92f, 1.38f)
-        val scaledWidth = maxWidth / scale
-        val scaledHeight = maxHeight / scale
+        when (screen) {
+            AppScreen.Home -> HomeScreen(
+                linkState = state,
+                server = selectedServer,
+                apiNotice = apiNotice,
+                trafficUsedBytes = quotaUsedBytes(),
+                trafficTotalBytes = quotaTotalBytes(),
+                nightTheme = darkRoom,
+                onToggle = ::cycleConnection,
+                onServers = { screen = AppScreen.Servers }
+            )
 
-        Box(
-            modifier = Modifier
-                .size(width = scaledWidth, height = scaledHeight)
-                .align(Alignment.Center)
-                .pointerInput(screen) {
-                    var dragX = 0f
-                    detectHorizontalDragGestures(
-                        onDragStart = { dragX = 0f },
-                        onHorizontalDrag = { _, dragAmount -> dragX += dragAmount },
-                        onDragEnd = {
-                            if (abs(dragX) > 70f) {
-                                screen = screen.swipeTarget(if (dragX < 0f) 1 else -1)
-                            }
-                            dragX = 0f
-                        },
-                        onDragCancel = { dragX = 0f }
-                    )
-                }
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                }
-        ) {
-            AnimatedContent(
-                targetState = screen,
-                transitionSpec = {
-                    val forward = targetState.screenOrder() > initialState.screenOrder()
-                    slideInHorizontally(
-                        animationSpec = tween(420)
-                    ) { width -> if (forward) width else -width } togetherWith
-                        slideOutHorizontally(
-                            animationSpec = tween(420)
-                        ) { width -> if (forward) -width else width }
-                },
-                label = "screen-change"
-            ) { current ->
-                when (current) {
-                    AppScreen.Home -> HomeScreen(
-                        linkState = state,
-                        server = selectedServer,
-                        apiNotice = apiNotice,
-                        trafficUsedBytes = quotaUsedBytes(),
-                        trafficTotalBytes = quotaTotalBytes(),
-                        nightTheme = darkRoom,
-                        onToggle = ::cycleConnection,
-                        onServers = { screen = AppScreen.Servers }
-                    )
+            AppScreen.Servers -> ServersScreen(
+                servers = serverNodes,
+                selectedId = selectedServerId,
+                nightTheme = darkRoom,
+                telegramMode = showingTelegramConfigs,
+                onSelect = { selectedServerId = it }
+            )
 
-                    AppScreen.Servers -> ServersScreen(
-                        servers = serverNodes,
-                        selectedId = selectedServerId,
-                        nightTheme = darkRoom,
-                        telegramMode = showingTelegramConfigs,
-                        onSelect = { selectedServerId = it }
-                    )
+            AppScreen.Settings -> SettingsScreen(
+                dnsCheck = dnsCheck,
+                cascadeMode = cascadeMode,
+                autoConnect = autoConnect,
+                killSwitch = killSwitch,
+                darkRoom = darkRoom,
+                notices = notices,
+                routeRulesCount = routingDraft.routeRules.count { it.enabled },
+                telegramAccount = telegramAccount,
+                telegramStatus = telegramNotice,
+                onDns = { dnsCheck = !dnsCheck },
+                onCascade = ::toggleCascadeMode,
+                onAuto = { autoConnect = !autoConnect },
+                onKill = { killSwitch = !killSwitch },
+                onDark = { darkRoom = !darkRoom },
+                onNotices = { notices = !notices },
+                onRouting = { screen = AppScreen.Routing },
+                onTelegramLogin = ::openTelegramLogin
+            )
 
-                    AppScreen.Settings -> SettingsScreen(
-                        dnsCheck = dnsCheck,
-                        cascadeMode = cascadeMode,
-                        autoConnect = autoConnect,
-                        killSwitch = killSwitch,
-                        darkRoom = darkRoom,
-                        notices = notices,
-                        routeRulesCount = routingDraft.routeRules.count { it.enabled },
-                        telegramAccount = telegramAccount,
-                        telegramStatus = telegramNotice,
-                        onDns = { dnsCheck = !dnsCheck },
-                        onCascade = ::toggleCascadeMode,
-                        onAuto = { autoConnect = !autoConnect },
-                        onKill = { killSwitch = !killSwitch },
-                        onDark = { darkRoom = !darkRoom },
-                        onNotices = { notices = !notices },
-                        onRouting = { screen = AppScreen.Routing },
-                        onTelegramLogin = ::openTelegramLogin
-                    )
+            AppScreen.Routing -> RoutingScreen(
+                policy = routingDraft,
+                notice = routingNotice,
+                hasUnsyncedChanges = hasRoutingDraftChanges(),
+                nightTheme = darkRoom,
+                onBack = { screen = AppScreen.Settings },
+                onSync = ::syncRoutingPolicy,
+                onToggleDefaultRoute = ::toggleDefaultRoute,
+                onToggleRule = ::toggleRouteRule,
+                onCycleRuleAction = ::cycleRouteRuleAction,
+                onAddRule = ::addRoutingRule,
+                onDeleteRule = ::deleteRouteRule
+            )
 
-                    AppScreen.Routing -> RoutingScreen(
-                        policy = routingDraft,
-                        notice = routingNotice,
-                        hasUnsyncedChanges = hasRoutingDraftChanges(),
-                        nightTheme = darkRoom,
-                        onBack = { screen = AppScreen.Settings },
-                        onSync = ::syncRoutingPolicy,
-                        onToggleDefaultRoute = ::toggleDefaultRoute,
-                        onToggleRule = ::toggleRouteRule,
-                        onCycleRuleAction = ::cycleRouteRuleAction,
-                        onAddRule = ::addRoutingRule,
-                        onDeleteRule = ::deleteRouteRule
-                    )
+            AppScreen.Speed -> SpeedScreen(nightTheme = darkRoom)
+        }
 
-                    AppScreen.Speed -> SpeedScreen(nightTheme = darkRoom)
-                }
-            }
-
-            val offOverlayAlpha = when (state) {
-                LinkState.On, LinkState.Paused -> 0f
-                LinkState.Connecting -> if (screen == AppScreen.Home) 0f else 0.18f
-                LinkState.Off -> if (screen == AppScreen.Home) 0f else 0.28f
-            }
-            if (offOverlayAlpha > 0f) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = offOverlayAlpha))
-                )
-            }
-
-            serverNotification?.let { notification ->
-                AlertDialog(
-                    onDismissRequest = {
-                        val dismissed = notification
-                        serverNotification = null
-                        scope.launch { runCatching { api.markNotificationRead(dismissed.id) } }
-                    },
-                    title = { Text(notification.title.ifBlank { "Сообщение от сервера" }) },
-                    text = { Text(notification.body.ifBlank { notification.displayText }) },
-                    confirmButton = {
-                        Button(
-                            onClick = {
-                                val dismissed = notification
-                                serverNotification = null
-                                scope.launch { runCatching { api.markNotificationRead(dismissed.id) } }
-                            }
-                        ) {
-                            Text("Понятно")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(
-                            onClick = {
-                                serverNotification = null
-                            }
-                        ) {
-                            Text("Позже")
-                        }
-                    }
-                )
-            }
-
-            BottomNav(
-                current = when (screen) {
-                    AppScreen.Servers -> AppScreen.Home
-                    AppScreen.Routing -> AppScreen.Settings
-                    else -> screen
-                },
-                onScreen = { screen = it },
-                light = !darkRoom,
+        val offOverlayAlpha = when (state) {
+            LinkState.On, LinkState.Paused -> 0f
+            LinkState.Connecting -> if (screen == AppScreen.Home) 0f else 0.18f
+            LinkState.Off -> if (screen == AppScreen.Home) 0f else 0.28f
+        }
+        if (offOverlayAlpha > 0f) {
+            Box(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(horizontal = 18.dp, vertical = 10.dp)
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = offOverlayAlpha))
             )
         }
+
+        serverNotification?.let { notification ->
+            AlertDialog(
+                onDismissRequest = {
+                    val dismissed = notification
+                    serverNotification = null
+                    scope.launch { runCatching { api.markNotificationRead(dismissed.id) } }
+                },
+                title = { Text(notification.title.ifBlank { "Сообщение от сервера" }) },
+                text = { Text(notification.body.ifBlank { notification.displayText }) },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val dismissed = notification
+                            serverNotification = null
+                            scope.launch { runCatching { api.markNotificationRead(dismissed.id) } }
+                        }
+                    ) {
+                        Text("Понятно")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            serverNotification = null
+                        }
+                    ) {
+                        Text("Позже")
+                    }
+                }
+            )
+        }
+
+        BottomNav(
+            current = when (screen) {
+                AppScreen.Servers -> AppScreen.Home
+                AppScreen.Routing -> AppScreen.Settings
+                else -> screen
+            },
+            onScreen = { screen = it },
+            light = !darkRoom,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 18.dp, vertical = 10.dp)
+        )
     }
 }
 

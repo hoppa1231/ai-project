@@ -11,6 +11,7 @@ import com.example.security.requireUserId
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.call
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
@@ -132,21 +133,19 @@ fun Application.configureAuthRoutes(context: AppContext) {
     routing {
         route("/auth") {
             get("/telegram/login") {
-                if (context.config.telegramBotToken.isBlank()) {
-                    throw ApiException(HttpStatusCode.ServiceUnavailable, "TELEGRAM_AUTH_DISABLED", "Telegram auth is not configured")
-                }
-                call.respondText(
-                    telegramLoginPage(
-                        botUsername = context.config.telegramBotUsername.removePrefix("@")
-                    ),
-                    ContentType.Text.Html
-                )
+                call.respondTelegramLogin(context, completePath = "/auth/telegram/complete")
+            }
+
+            get("/telegram/mobile-login") {
+                call.respondTelegramLogin(context, completePath = "/auth/telegram/mobile-complete")
             }
 
             get("/telegram/complete") {
-                val payload = call.request.queryParameters["payload"]
-                    ?: throw ApiException(HttpStatusCode.BadRequest, "MISSING_TELEGRAM_PAYLOAD", "Missing Telegram payload")
-                call.respondText(telegramCompletePage(payload), ContentType.Text.Html)
+                call.respondTelegramComplete()
+            }
+
+            get("/telegram/mobile-complete") {
+                call.respondTelegramComplete()
             }
 
             post("/telegram/app-login/webhook/{secret}") {
@@ -702,8 +701,28 @@ private fun issueTelegramSession(
     )
 }
 
-private fun telegramLoginPage(botUsername: String): String {
+private suspend fun ApplicationCall.respondTelegramLogin(context: AppContext, completePath: String) {
+    if (context.config.telegramBotToken.isBlank()) {
+        throw ApiException(HttpStatusCode.ServiceUnavailable, "TELEGRAM_AUTH_DISABLED", "Telegram auth is not configured")
+    }
+    respondText(
+        telegramLoginPage(
+            botUsername = context.config.telegramBotUsername.removePrefix("@"),
+            completePath = completePath
+        ),
+        ContentType.Text.Html
+    )
+}
+
+private suspend fun ApplicationCall.respondTelegramComplete() {
+    val payload = request.queryParameters["payload"]
+        ?: throw ApiException(HttpStatusCode.BadRequest, "MISSING_TELEGRAM_PAYLOAD", "Missing Telegram payload")
+    respondText(telegramCompletePage(payload), ContentType.Text.Html)
+}
+
+private fun telegramLoginPage(botUsername: String, completePath: String): String {
     val safeBotUsername = botUsername.replace(Regex("[^A-Za-z0-9_]"), "")
+    val safeCompletePath = sanitizeTelegramCompletePath(completePath)
     return """
 <!doctype html>
 <html lang="ru">
@@ -728,12 +747,18 @@ private fun telegramLoginPage(botUsername: String): String {
       data-size="large"
       data-radius="6"
       data-request-access="write"
-      data-onauth="window.location.href='/auth/telegram/complete?payload=' + encodeURIComponent(JSON.stringify(user));">
+      data-onauth="window.location.href='$safeCompletePath?payload=' + encodeURIComponent(JSON.stringify(user));">
     </script>
   </main>
 </body>
 </html>
     """.trimIndent()
+}
+
+private fun sanitizeTelegramCompletePath(path: String): String {
+    return path
+        .takeIf { it.startsWith("/") && it.all { char -> char.isLetterOrDigit() || char == '/' || char == '-' || char == '_' } }
+        ?: "/auth/telegram/complete"
 }
 
 private fun telegramCompletePage(payload: String): String {

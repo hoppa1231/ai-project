@@ -5,14 +5,18 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -76,11 +80,18 @@ fun HomeScreen(
     val textColor = if (nightTheme) bone else InkSoft
 
     PosterFrame(background = background, dark = nightTheme) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val compactHeight = maxHeight < 820.dp
+            val switchPanelHeight = if (compactHeight) 314.dp else 390.dp
+            val switchWidth = if (compactHeight) 210.dp else 230.dp
+            val switchHeight = if (compactHeight) 334.dp else 366.dp
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp)
-                .padding(top = 14.dp, bottom = 76.dp),
+                .padding(top = 14.dp, bottom = 88.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             ScreenHeader(
@@ -99,14 +110,14 @@ fun HomeScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(390.dp)
+                    .height(switchPanelHeight)
                     .padding(top = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
                 VpnKnifeSwitch(
                     state = linkState,
                     onToggle = onToggle,
-                    modifier = Modifier.size(width = 230.dp, height = 366.dp)
+                    modifier = Modifier.size(width = switchWidth, height = switchHeight)
                 )
             }
 
@@ -129,7 +140,7 @@ fun HomeScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(76.dp)
+                    .heightIn(min = 76.dp)
             ) {
                 StatusPanel(linkState = linkState, gold = gold, bone = bone, nightTheme = nightTheme)
             }
@@ -167,6 +178,7 @@ fun HomeScreen(
                         .padding(top = 4.dp)
                 )
             }
+        }
         }
     }
 }

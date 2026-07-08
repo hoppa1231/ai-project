@@ -71,8 +71,14 @@ fun VpnNode.toServerNode(index: Int): ServerNode {
 }
 
 fun TelegramLinkedConfig.toServerNode(index: Int): ServerNode {
-    val title = email
-    val location = listOf(nodeName, region.uppercase(), if (enabled) "" else "ОТКЛЮЧЕН")
+    val title = configName.ifBlank { email.substringBefore('@').ifBlank { "Telegram config ${index + 1}" } }
+    val location = listOf(
+        nodeName,
+        region.uppercase(),
+        email.takeIf { it.isNotBlank() },
+        if (enabled) "" else "ОТКЛЮЧЕН"
+    )
+        .filterNotNull()
         .filter { it.isNotBlank() }
         .joinToString(" · ")
         .ifBlank { nodeId.take(8) }

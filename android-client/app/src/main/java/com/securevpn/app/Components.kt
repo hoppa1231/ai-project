@@ -225,6 +225,10 @@ fun VpnKnifeSwitch(
                     onDragCancel = { dragDistance = 0f }
                 )
             }
+            .clickable(
+                interactionSource = switchInteraction,
+                indication = null
+            ) { onToggle() }
     ) {
         Image(
             painter = painterResource(
@@ -233,15 +237,6 @@ fun VpnKnifeSwitch(
             contentDescription = null,
             contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxSize()
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .size(116.dp)
-                .clickable(
-                    interactionSource = switchInteraction,
-                    indication = null
-                ) { onToggle() }
         )
     }
 }
