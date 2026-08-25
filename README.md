@@ -50,38 +50,7 @@ Directly exposing node panels to clients couples mobile releases to infrastructu
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    user["Android user"] --> app["Jetpack Compose app"]
-    app -->|"JWT + HTTPS"| controlPlane["Ktor backend control plane"]
-
-    subgraph cloud["CONTROL PLANE (CLOUD)"]
-        direction TB
-        controlPlane --> auth["Auth, devices, quota"]
-        controlPlane --> planner["Policy and route planner"]
-        controlPlane --> workers["Health and traffic workers"]
-        auth --> db[("PostgreSQL")]
-        planner --> db
-        workers --> db
-    end
-
-    controlPlane -->|"Bearer token"| agent["Node agent"]
-    agent --> panel["3x-ui / Xray"]
-    app -->|"Rendered config"| tunnel["sing-box tunnel"]
-    tunnel -->|"Encrypted tunnel"| node["Selected VPN node(s)"]
-
-    classDef appFill fill:#1b1538,stroke:#8c6bff,stroke-width:1.5px,color:#f1ecff;
-    classDef backendFill fill:#132d5f,stroke:#5ba3ff,stroke-width:1.5px,color:#eef5ff;
-    classDef infraFill fill:#102f3a,stroke:#28c7d7,stroke-width:1.5px,color:#ecffff;
-    classDef panelFill fill:#1d163f,stroke:#9371ff,stroke-width:1.5px,color:#f5f0ff;
-    classDef nodeFill fill:#112f1d,stroke:#4cc97f,stroke-width:1.5px,color:#f0fff5;
-
-    class user,app appFill;
-    class controlPlane,auth,planner,workers backendFill;
-    class agent,tunnel infraFill;
-    class panel panelFill;
-    class tunnel,node nodeFill;
-```
+![SecureVPN architecture diagram](docs/assets/securevpn-architecture.png)
 
 See [Architecture](docs/architecture.md) for trust boundaries, request flows, failure modes, and scaling notes.
 
