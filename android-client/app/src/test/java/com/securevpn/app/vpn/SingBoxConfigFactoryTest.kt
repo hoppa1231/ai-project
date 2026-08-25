@@ -66,6 +66,67 @@ class SingBoxConfigFactoryTest {
         assertEquals("exit-1", remoteDns.getString("detour"))
     }
 
+    @Test
+    fun geoipRuleSetsDownloadDirectlyBeforeVpnIsStarted() {
+        val config = JSONObject(
+            SingBoxConfigFactory.fromServerClientConfig(
+                clientConfigJson = cascadeClientConfig,
+                policy = RoutingPolicy.default().copy(
+                    routeRules = listOf(
+                        RouteRule(
+                            id = "geoip-ru",
+                            source = "DEFAULT",
+                            defaultRuleKey = "direct-ru-geoip-rule-sets",
+                            name = "RU direct",
+                            description = "",
+                            enabled = true,
+                            priority = 100,
+                            matchType = "GEOIP",
+                            values = listOf("geoip-ru"),
+                            action = "DIRECT"
+                        )
+                    )
+                )
+            )
+        )
+
+        val ruleSet = config.getJSONObject("route").getJSONArray("rule_set").getJSONObject(0)
+        assertEquals("direct", ruleSet.getString("download_detour"))
+    }
+
+    @Test
+    fun blockedRuGeoipIsNotRoutedDirectly() {
+        val config = JSONObject(
+            SingBoxConfigFactory.fromServerClientConfig(
+                clientConfigJson = cascadeClientConfig,
+                policy = RoutingPolicy.default().copy(
+                    routeRules = listOf(
+                        RouteRule(
+                            id = "geoip-ru",
+                            source = "DEFAULT",
+                            defaultRuleKey = "direct-ru-geoip-rule-sets",
+                            name = "RU direct",
+                            description = "",
+                            enabled = true,
+                            priority = 100,
+                            matchType = "GEOIP",
+                            values = listOf("ru", "ru-blocked"),
+                            action = "DIRECT"
+                        )
+                    )
+                )
+            )
+        )
+
+        val rules = config.getJSONObject("route").getJSONArray("rules")
+        val directGeoipRules = (0 until rules.length())
+            .map { rules.getJSONObject(it) }
+            .filter { it.optString("outbound") == "direct" && it.has("rule_set") }
+
+        assertEquals(1, directGeoipRules.size)
+        assertEquals("geoip-ru", directGeoipRules.single().getJSONArray("rule_set").getString(0))
+    }
+
     private val cascadeClientConfig = """
         {
           "format": "sing-box",

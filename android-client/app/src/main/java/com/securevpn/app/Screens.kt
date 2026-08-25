@@ -5,8 +5,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -81,17 +79,33 @@ fun HomeScreen(
 
     PosterFrame(background = background, dark = nightTheme) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val compactHeight = maxHeight < 820.dp
-            val switchPanelHeight = if (compactHeight) 314.dp else 390.dp
-            val switchWidth = if (compactHeight) 210.dp else 230.dp
-            val switchHeight = if (compactHeight) 334.dp else 366.dp
+            val veryCompactHeight = maxHeight < 650.dp
+            val compactHeight = maxHeight < 780.dp
+            val switchPanelHeight = when {
+                veryCompactHeight -> 190.dp
+                compactHeight -> 250.dp
+                else -> 330.dp
+            }
+            val switchWidth = when {
+                veryCompactHeight -> 150.dp
+                compactHeight -> 180.dp
+                else -> 220.dp
+            }
+            val switchHeight = when {
+                veryCompactHeight -> 220.dp
+                compactHeight -> 270.dp
+                else -> 350.dp
+            }
+            val sectionGap = if (veryCompactHeight) 3.dp else if (compactHeight) 6.dp else 10.dp
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 18.dp)
-                .padding(top = 14.dp, bottom = 88.dp),
+                .padding(horizontal = if (veryCompactHeight) 12.dp else 18.dp)
+                .padding(
+                    top = if (veryCompactHeight) 4.dp else if (compactHeight) 8.dp else 14.dp,
+                    bottom = if (veryCompactHeight) 2.dp else 6.dp
+                ),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             ScreenHeader(
@@ -104,14 +118,14 @@ fun HomeScreen(
                 },
                 color = titleColor,
                 subtitleColor = textColor.copy(alpha = 0.86f),
-                titleSize = 30
+                titleSize = if (veryCompactHeight) 22 else if (compactHeight) 26 else 30
             )
 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(switchPanelHeight)
-                    .padding(top = 8.dp),
+                    .padding(top = if (veryCompactHeight) 0.dp else 4.dp),
                 contentAlignment = Alignment.Center
             ) {
                 VpnKnifeSwitch(
@@ -121,37 +135,39 @@ fun HomeScreen(
                 )
             }
 
-            Text(
-                text = when (linkState) {
-                    LinkState.Off -> "↑ нажмите кнопку или потяните вверхъ ↑"
-                    LinkState.Connecting -> "∙∙∙ замыкаемъ контакты ∙∙∙"
-                    LinkState.Paused -> "↓ нажмите кнопку, чтобы остановить связь ↓"
-                    LinkState.On -> "↓ нажмите кнопку или потяните внизъ ↓"
-                },
-                color = if (isConnecting) OrangeSignal else bone.copy(alpha = 0.78f),
-                fontFamily = Playfair,
-                fontStyle = FontStyle.Italic,
-                fontSize = 11.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
+            if (!veryCompactHeight) {
+                Text(
+                    text = when (linkState) {
+                        LinkState.Off -> "↑ нажмите кнопку или потяните вверхъ ↑"
+                        LinkState.Connecting -> "∙∙∙ замыкаемъ контакты ∙∙∙"
+                        LinkState.Paused -> "↓ нажмите кнопку, чтобы остановить связь ↓"
+                        LinkState.On -> "↓ нажмите кнопку или потяните внизъ ↓"
+                    },
+                    color = if (isConnecting) OrangeSignal else bone.copy(alpha = 0.78f),
+                    fontFamily = Playfair,
+                    fontStyle = FontStyle.Italic,
+                    fontSize = 11.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(sectionGap))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 76.dp)
+                    .heightIn(min = if (veryCompactHeight) 54.dp else if (compactHeight) 64.dp else 76.dp)
             ) {
                 StatusPanel(linkState = linkState, gold = gold, bone = bone, nightTheme = nightTheme)
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(sectionGap))
             TrafficQuotaBar(
                 usedBytes = trafficUsedBytes,
                 totalBytes = trafficTotalBytes,
                 active = linkState != LinkState.Off,
                 nightTheme = nightTheme
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(sectionGap))
             ServerTicket(
                 server = server,
                 enabled = !isOff,
@@ -160,7 +176,7 @@ fun HomeScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(28.dp),
+                    .height(if (veryCompactHeight) 20.dp else 28.dp),
                 contentAlignment = Alignment.TopCenter
             ) {
                 Text(

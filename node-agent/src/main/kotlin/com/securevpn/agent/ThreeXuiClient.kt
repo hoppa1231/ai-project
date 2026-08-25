@@ -131,13 +131,26 @@ class ThreeXuiClient(
     }
 
     private fun login(): String {
+        var lastError: IOException? = null
+        for (path in listOf("/login", "/")) {
+            try {
+                return login(path)
+            } catch (error: IOException) {
+                lastError = error
+                if (!error.message.orEmpty().contains("HTTP 404")) throw error
+            }
+        }
+        throw lastError ?: IOException("3x-ui login failed")
+    }
+
+    private fun login(path: String): String {
         val form = buildList {
             add("username=${URLEncoder.encode(config.username, Charsets.UTF_8)}")
             add("password=${URLEncoder.encode(config.password, Charsets.UTF_8)}")
             config.twoFactorCode?.let { add("twoFactorCode=${URLEncoder.encode(it, Charsets.UTF_8)}") }
         }.joinToString("&")
 
-        val connection = open(path = "/login", method = "POST").apply {
+        val connection = open(path = path, method = "POST").apply {
             setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
             doOutput = true
             outputStream.use { it.write(form.toByteArray(Charsets.UTF_8)) }

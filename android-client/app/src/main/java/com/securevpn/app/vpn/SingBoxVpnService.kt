@@ -24,6 +24,8 @@ import android.os.Process
 import androidx.core.app.NotificationCompat
 import com.securevpn.app.R
 import com.securevpn.app.MainActivity
+import org.json.JSONArray
+import org.json.JSONObject
 import io.nekohasekai.libbox.CommandClient
 import io.nekohasekai.libbox.CommandClientHandler
 import io.nekohasekai.libbox.CommandClientOptions
@@ -96,12 +98,13 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
                 connectionOutbounds.clear()
                 startForeground(NOTIFICATION_ID, buildNotification("Подключение...", custom = false))
                 publishState(STATE_CONNECTING)
-                refreshNotification("Подключение...")
+                refreshNotification("Подключение...", state = STATE_CONNECTING)
                 scope.launch {
                     runCatching { withTimeout(START_TIMEOUT_MS) { startCore(config) } }
                         .onFailure { error ->
-                            safeNotify(error.message?.take(90) ?: "Ошибка запуска VPN")
-                            publishState(STATE_CONFIG_FAILED)
+                            val errorMessage = error.message?.take(240) ?: "Ошибка запуска VPN"
+                            safeNotify(errorMessage.take(90))
+                            publishState(STATE_CONFIG_FAILED, errorMessage)
                             closeCoreResources()
                             stopForeground(STOP_FOREGROUND_REMOVE)
                             stopSelf()
@@ -147,8 +150,17 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
             it.start()
             commandServer = it
         }
-        server.checkConfig(config)
-        server.startOrReloadService(config, OverrideOptions().apply {
+        val effectiveConfig = try {
+            server.checkConfig(config)
+            config
+        } catch (error: Throwable) {
+            if (!error.isRuleSetInitializationFailure()) throw error
+            val fallbackConfig = withoutRemoteRuleSets(config)
+            server.checkConfig(fallbackConfig)
+            fallbackConfig
+        }
+        currentConfig = effectiveConfig
+        server.startOrReloadService(effectiveConfig, OverrideOptions().apply {
             autoRedirect = false
         })
         startCommandClient()
@@ -207,6 +219,29 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
         }
     }
 
+    private fun Throwable.isRuleSetInitializationFailure(): Boolean {
+        val details = generateSequence(this) { it.cause }
+            .mapNotNull { it.message }
+            .joinToString(" ")
+            .lowercase()
+        return "rule-set" in details || "rule set" in details || "ruleset" in details
+    }
+
+    private fun withoutRemoteRuleSets(config: String): String {
+        val root = JSONObject(config)
+        val route = root.optJSONObject("route") ?: return config
+        route.remove("rule_set")
+        val rules = route.optJSONArray("rules") ?: JSONArray()
+        val filteredRules = JSONArray()
+        for (index in 0 until rules.length()) {
+            val rule = rules.optJSONObject(index) ?: continue
+            if (!rule.has("rule_set")) filteredRules.put(rule)
+        }
+        route.put("rules", filteredRules)
+        root.remove("experimental")
+        return root.toString()
+    }
+
     override fun openTun(options: TunOptions): Int {
         if (prepare(this) != null) error("Android VPN permission is missing")
         val builder = Builder()
@@ -230,7 +265,7 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
                 builder.addDnsServer(FALLBACK_TUN_DNS)
             }
             addRoutes(builder, options.inet4RouteAddress, fallback = "0.0.0.0/0")
-            addRoutes(builder, options.inet6RouteAddress)
+            addRoutes(builder, options.inet6RouteAddress, fallback = "::/0")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 excludeRoutes(builder, options.inet4RouteExcludeAddress)
                 excludeRoutes(builder, options.inet6RouteExcludeAddress)
@@ -588,12 +623,16 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
     private fun connectivityManager(): ConnectivityManager? =
         getSystemService(CONNECTIVITY_SERVICE) as? ConnectivityManager
 
-    private fun refreshNotification(text: String, throttle: Boolean = false) {
+    private fun refreshNotification(
+        text: String,
+        throttle: Boolean = false,
+        state: String = if (paused) STATE_PAUSED else STATE_ON
+    ) {
         val now = System.currentTimeMillis()
         if (throttle && now - lastNotificationUpdate < 950L) return
         notificationText = text
         lastNotificationUpdate = now
-        publishState(if (paused) STATE_PAUSED else STATE_ON)
+        publishState(state)
         safeNotify(text)
     }
 
@@ -606,7 +645,7 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
         }
     }
 
-    private fun publishState(state: String) {
+    private fun publishState(state: String, error: String? = null) {
         val currentBytes = quotaUsedBaseBytes + traffic.total()
         val line = quotaDisplayLine(currentBytes, quotaTotalBytes)
         statePrefs()
@@ -616,6 +655,7 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
             .putLong(KEY_TRAFFIC_BYTES, currentBytes)
             .putLong(KEY_QUOTA_TOTAL_BYTES, quotaTotalBytes)
             .putLong(KEY_UPDATED_AT, System.currentTimeMillis())
+            .putString(KEY_ERROR, error)
             .apply()
         sendBroadcast(
             Intent(ACTION_STATE_CHANGED)
@@ -625,6 +665,7 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
                 .putExtra(EXTRA_TRAFFIC_BYTES, currentBytes)
                 .putExtra(EXTRA_QUOTA_TOTAL_BYTES, quotaTotalBytes)
                 .putExtra(EXTRA_UPDATED_AT, System.currentTimeMillis())
+                .putExtra(EXTRA_ERROR, error)
         )
     }
 
@@ -753,7 +794,8 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
         iterator: io.nekohasekai.libbox.RoutePrefixIterator,
         fallback: String? = null
     ) {
-        val routes = iterator.toPrefixStrings().ifEmpty { fallback?.let(::listOf).orEmpty() }
+        val routes = iterator.toPrefixStrings().toMutableList()
+        fallback?.takeUnless(routes::contains)?.let(routes::add)
         routes.forEach { prefix ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val (address, length) = splitPrefix(prefix)
@@ -828,6 +870,7 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
         const val EXTRA_QUOTA_USED_BYTES = "quota_used_bytes"
         const val EXTRA_QUOTA_TOTAL_BYTES = "quota_total_bytes"
         const val EXTRA_UPDATED_AT = "updated_at"
+        const val EXTRA_ERROR = "error"
         const val STATE_OFF = "OFF"
         const val STATE_CONNECTING = "CONNECTING"
         const val STATE_PAUSED = "PAUSED"
@@ -843,6 +886,7 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
         private const val KEY_TRAFFIC_BYTES = "traffic_bytes"
         private const val KEY_QUOTA_TOTAL_BYTES = "quota_total_bytes"
         private const val KEY_UPDATED_AT = "updated_at"
+        private const val KEY_ERROR = "error"
 
         fun runtimeState(context: Context): RuntimeSnapshot {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -851,7 +895,8 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
                 trafficText = prefs.getString(KEY_TRAFFIC, "") ?: "",
                 trafficBytes = prefs.getLong(KEY_TRAFFIC_BYTES, 0L),
                 quotaTotalBytes = prefs.getLong(KEY_QUOTA_TOTAL_BYTES, 0L),
-                updatedAt = prefs.getLong(KEY_UPDATED_AT, 0L)
+                updatedAt = prefs.getLong(KEY_UPDATED_AT, 0L),
+                error = prefs.getString(KEY_ERROR, null)
             )
         }
     }
@@ -861,7 +906,8 @@ class SingBoxVpnService : VpnService(), PlatformInterface, CommandServerHandler,
         val trafficText: String,
         val trafficBytes: Long,
         val quotaTotalBytes: Long,
-        val updatedAt: Long
+        val updatedAt: Long,
+        val error: String? = null
     )
 
     private class TrafficCounters {

@@ -21,7 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -90,7 +90,7 @@ fun PosterFrame(background: Color, dark: Boolean, content: @Composable () -> Uni
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF202126))
-            .systemBarsPadding()
+            .statusBarsPadding()
     ) {
         Box(
             modifier = Modifier

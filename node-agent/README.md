@@ -40,7 +40,7 @@ AGENT_TOKEN=change-this-long-random-token
 ## Local Run
 
 ```bash
-gradle run
+bash ../gradlew -p . run
 ```
 
 ## Health Check

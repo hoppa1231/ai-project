@@ -17,7 +17,8 @@ services:
       retries: 20
 
   backend:
-    build: .
+    build:
+      context: ./backend
     depends_on:
       postgres:
         condition: service_healthy
@@ -25,9 +26,14 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/vpn_cp
       DB_USER: vpn
       DB_PASSWORD: vpn
-      JWT_SECRET: change-this-secret
-      HASH_PEPPER: change-this-pepper
-      XRAY_MODE: stub
+      JWT_SECRET: ${JWT_SECRET:-local-development-jwt-secret-change-me}
+      HASH_PEPPER: ${HASH_PEPPER:-local-development-hash-pepper-change-me}
+      XRAY_MODE: ${XRAY_MODE:-stub}
+      AGENT_SCHEME: ${AGENT_SCHEME:-http}
+      AGENT_BASE_PATH: ${AGENT_BASE_PATH:-}
+      AGENT_TOKEN: ${AGENT_TOKEN:-local-development-agent-token-change-me}
+      VPN_DEFAULT_ROUTE_MODE: ${VPN_DEFAULT_ROUTE_MODE:-SINGLE}
+      VPN_CASCADE_FALLBACK_TO_SINGLE: ${VPN_CASCADE_FALLBACK_TO_SINGLE:-true}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-info_panel_85_bot}
       TELEGRAM_APP_LOGIN_ENABLED: ${TELEGRAM_APP_LOGIN_ENABLED:-false}

@@ -18,8 +18,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -30,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -38,7 +44,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -140,6 +148,8 @@ fun SovietVpnApp(
     var runtimeQuotaTotalBytes by rememberSaveable { mutableStateOf(0L) }
     var configFailureRetry by rememberSaveable { mutableStateOf(0) }
     var autoConfigRetryCount by rememberSaveable { mutableStateOf(0) }
+    var lastConfigFailureError by remember { mutableStateOf<String?>(null) }
+    var bootstrapLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -208,6 +218,10 @@ fun SovietVpnApp(
         }
         serviceControlledState = runtimeState != SingBoxVpnService.STATE_OFF &&
             runtimeState != SingBoxVpnService.STATE_CONFIG_FAILED
+        if (runtimeState == SingBoxVpnService.STATE_CONFIG_FAILED && !snapshot.error.isNullOrBlank()) {
+            lastConfigFailureError = snapshot.error
+            apiNotice = "VPN не запустился: ${snapshot.error.take(70)}"
+        }
     }
 
     DisposableEffect(context) {
@@ -222,11 +236,16 @@ fun SovietVpnApp(
                         trafficText = intent.getStringExtra(SingBoxVpnService.EXTRA_TRAFFIC).orEmpty(),
                         trafficBytes = intent.getLongExtra(SingBoxVpnService.EXTRA_TRAFFIC_BYTES, 0L),
                         quotaTotalBytes = intent.getLongExtra(SingBoxVpnService.EXTRA_QUOTA_TOTAL_BYTES, 0L),
-                        updatedAt = intent.getLongExtra(SingBoxVpnService.EXTRA_UPDATED_AT, System.currentTimeMillis())
+                        updatedAt = intent.getLongExtra(SingBoxVpnService.EXTRA_UPDATED_AT, System.currentTimeMillis()),
+                        error = intent.getStringExtra(SingBoxVpnService.EXTRA_ERROR)
                     )
                 )
                 if (nextState == SingBoxVpnService.STATE_CONFIG_FAILED) {
+                    lastConfigFailureError = intent.getStringExtra(SingBoxVpnService.EXTRA_ERROR)
                     configFailureRetry += 1
+                } else if (nextState == SingBoxVpnService.STATE_ON) {
+                    autoConfigRetryCount = 0
+                    lastConfigFailureError = null
                 }
             }
         }
@@ -245,25 +264,22 @@ fun SovietVpnApp(
     }
 
     fun refreshBootstrap() {
+        if (bootstrapLoading) return
+        bootstrapLoading = true
         scope.launch {
-            if (!context.hasInternetConnection()) {
-                serverNodes = emptyList()
-                if (!userTouchedConnection && !serviceControlledState) {
-                    state = LinkState.Off
-                }
-                apiNotice = "Нет интернета. Проверьте подключение и попробуйте снова"
-                return@launch
-            }
-            runCatching { api.loadCurrentQuota() }
-                .onSuccess { quotaStatus = it }
-            runCatching { api.loadCurrentNotifications() }
-                .onSuccess { notifications ->
-                    serverNotification = notifications.firstOrNull()
+            try {
+                if (!context.hasInternetConnection()) {
+                    serverNodes = emptyList()
+                    if (!userTouchedConnection && !serviceControlledState) {
+                        state = LinkState.Off
+                    }
+                    apiNotice = "Нет интернета. Проверьте подключение и попробуйте снова"
+                    return@launch
                 }
 
-            val linkedAccount = telegramAccount
-            if (linkedAccount != null) {
-                runCatching { api.loadTelegramConfigs() }
+                val linkedAccount = telegramAccount
+                if (linkedAccount != null) {
+                    runCatching { api.loadTelegramConfigs() }
                     .onSuccess { telegramConfigs ->
                         showingTelegramConfigs = true
                         val nextServers = telegramConfigs.mapIndexed { index, config -> config.toServerNode(index) }
@@ -288,31 +304,34 @@ fun SovietVpnApp(
                         }
                         apiNotice = error.message?.take(90) ?: "Не удалось загрузить Telegram-конфиги"
                     }
-                return@launch
-            }
+                    return@launch
+                }
 
-            runCatching { api.bootstrap() }
-                .onSuccess { bootstrap ->
-                    val apiNodes = bootstrap.nodes.mapIndexed { index, node -> node.toServerNode(index) }
-                    showingTelegramConfigs = false
-                    serverNodes = apiNodes
-                    cascadeMode = api.isCascadeModeEnabled()
-                    quotaStatus = bootstrap.quota
-                    serverNotification = bootstrap.notifications.firstOrNull() ?: serverNotification
-                    if (apiNodes.none { it.id == selectedServerId }) {
-                        selectedServerId = apiNodes.firstOrNull()?.id ?: selectedServerId
+                runCatching { api.bootstrap() }
+                    .onSuccess { bootstrap ->
+                        val apiNodes = bootstrap.nodes.mapIndexed { index, node -> node.toServerNode(index) }
+                        showingTelegramConfigs = false
+                        serverNodes = apiNodes
+                        cascadeMode = api.isCascadeModeEnabled()
+                        quotaStatus = bootstrap.quota
+                        serverNotification = bootstrap.notifications.firstOrNull()
+                        if (apiNodes.none { it.id == selectedServerId }) {
+                            selectedServerId = apiNodes.firstOrNull()?.id ?: selectedServerId
+                        }
+                        if (!userTouchedConnection && !serviceControlledState) state = LinkState.Off
                     }
-                    if (!userTouchedConnection && !serviceControlledState) state = LinkState.Off
-                }
-                .onFailure { error ->
-                    serverNodes = emptyList()
-                    if (!userTouchedConnection && !serviceControlledState) state = LinkState.Off
-                    apiNotice = if (!context.hasInternetConnection()) {
-                        "Нет интернета. Проверьте подключение и попробуйте снова"
-                    } else {
-                        error.message?.take(90) ?: "API недоступен"
+                    .onFailure { error ->
+                        serverNodes = emptyList()
+                        if (!userTouchedConnection && !serviceControlledState) state = LinkState.Off
+                        apiNotice = if (!context.hasInternetConnection()) {
+                            "Нет интернета. Проверьте подключение и попробуйте снова"
+                        } else {
+                            error.message?.take(90) ?: "API недоступен"
+                        }
                     }
-                }
+            } finally {
+                bootstrapLoading = false
+            }
         }
     }
 
@@ -469,7 +488,8 @@ fun SovietVpnApp(
         if (configFailureRetry <= 0) return@LaunchedEffect
         if (autoConfigRetryCount >= 1) {
             state = LinkState.Off
-            apiNotice = "Новый конфиг тоже не запустился"
+            apiNotice = lastConfigFailureError?.let { "VPN не запустился: ${it.take(70)}" }
+                ?: "Новый конфиг тоже не запустился"
             return@LaunchedEffect
         }
         autoConfigRetryCount += 1
@@ -482,9 +502,8 @@ fun SovietVpnApp(
         }
             .onSuccess {
                 serviceControlledState = true
-                autoConfigRetryCount = 0
-                state = LinkState.On
-                apiNotice = "Новый конфиг применен"
+                state = LinkState.Connecting
+                apiNotice = "Проверяем новый конфиг..."
             }
             .onFailure { error ->
                 serviceControlledState = false
@@ -579,6 +598,11 @@ fun SovietVpnApp(
         } else {
             refreshRoutingPolicy()
         }
+    }
+
+    fun dismissServerNotification(notification: ServerNotification) {
+        serverNotification = null
+        scope.launch { runCatching { api.markNotificationRead(notification.id) } }
     }
 
     fun updateRoutingDraft(nextPolicy: RoutingPolicy) {
@@ -711,7 +735,7 @@ fun SovietVpnApp(
                 return
             }
             if (!selectedServer.available || selectedServer.id == "empty") {
-                apiNotice = "Нет доступного VPN-узла. Проверьте подключение"
+                apiNotice = if (bootstrapLoading) "Загружаем список VPN-узлов..." else "Нет доступного VPN-узла. Обновляем список..."
                 refreshBootstrap()
                 return
             }
@@ -750,30 +774,9 @@ fun SovietVpnApp(
         }
     }
 
-    BackHandler(enabled = screen == AppScreen.Routing) {
-        screen = AppScreen.Settings
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(if (darkRoom) BurgundyDeep else Paper)
-            .pointerInput(screen) {
-                var dragX = 0f
-                detectHorizontalDragGestures(
-                    onDragStart = { dragX = 0f },
-                    onHorizontalDrag = { _, dragAmount -> dragX += dragAmount },
-                    onDragEnd = {
-                        if (abs(dragX) > 70f) {
-                            screen = screen.swipeTarget(if (dragX < 0f) 1 else -1)
-                        }
-                        dragX = 0f
-                    },
-                    onDragCancel = { dragX = 0f }
-                )
-            }
-    ) {
-        when (screen) {
+    @Composable
+    fun ScreenContent(targetScreen: AppScreen) {
+        when (targetScreen) {
             AppScreen.Home -> HomeScreen(
                 linkState = state,
                 server = selectedServer,
@@ -829,8 +832,87 @@ fun SovietVpnApp(
 
             AppScreen.Speed -> SpeedScreen(nightTheme = darkRoom)
         }
+    }
 
-        val offOverlayAlpha = when (state) {
+    var swipeOffsetPx by remember { mutableFloatStateOf(0f) }
+    var swipeWidthPx by remember { mutableFloatStateOf(1f) }
+    var swipeAnimating by remember { mutableStateOf(false) }
+
+    fun finishSwipe() {
+        if (swipeAnimating) return
+        val direction = if (swipeOffsetPx < 0f) 1 else -1
+        val target = screen.swipeTarget(direction)
+        val shouldChange = target != screen && abs(swipeOffsetPx) >= swipeWidthPx * 0.18f
+        swipeAnimating = true
+        scope.launch {
+            val destination = if (shouldChange) {
+                if (direction > 0) -swipeWidthPx else swipeWidthPx
+            } else {
+                0f
+            }
+            Animatable(swipeOffsetPx).animateTo(destination, tween(190)) {
+                swipeOffsetPx = value
+            }
+            if (shouldChange) screen = target
+            swipeOffsetPx = 0f
+            swipeAnimating = false
+        }
+    }
+
+    BackHandler(enabled = screen == AppScreen.Routing) {
+        screen = AppScreen.Settings
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(if (darkRoom) BurgundyDeep else Paper)
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .onSizeChanged { swipeWidthPx = it.width.toFloat().coerceAtLeast(1f) }
+                .pointerInput(screen) {
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            if (!swipeAnimating) swipeOffsetPx = 0f
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            if (!swipeAnimating) {
+                                change.consume()
+                                val candidate = (swipeOffsetPx + dragAmount).coerceIn(-swipeWidthPx, swipeWidthPx)
+                                val direction = if (candidate < 0f) 1 else -1
+                                swipeOffsetPx = if (screen.swipeTarget(direction) == screen) candidate * 0.22f else candidate
+                            }
+                        },
+                        onDragEnd = ::finishSwipe,
+                        onDragCancel = ::finishSwipe
+                    )
+                }
+        ) {
+            val swipeDirection = if (swipeOffsetPx < 0f) 1 else -1
+            val adjacentScreen = screen.swipeTarget(swipeDirection)
+            if (swipeOffsetPx != 0f && adjacentScreen != screen) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            translationX = swipeOffsetPx + if (swipeDirection > 0) swipeWidthPx else -swipeWidthPx
+                        }
+                ) {
+                    ScreenContent(adjacentScreen)
+                }
+            }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { translationX = swipeOffsetPx }
+            ) {
+                ScreenContent(screen)
+            }
+
+            val offOverlayAlpha = when (state) {
             LinkState.On, LinkState.Paused -> 0f
             LinkState.Connecting -> if (screen == AppScreen.Home) 0f else 0.18f
             LinkState.Off -> if (screen == AppScreen.Home) 0f else 0.28f
@@ -841,23 +923,19 @@ fun SovietVpnApp(
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = offOverlayAlpha))
             )
-        }
+            }
 
-        serverNotification?.let { notification ->
+            serverNotification?.let { notification ->
             AlertDialog(
                 onDismissRequest = {
-                    val dismissed = notification
-                    serverNotification = null
-                    scope.launch { runCatching { api.markNotificationRead(dismissed.id) } }
+                    dismissServerNotification(notification)
                 },
                 title = { Text(notification.title.ifBlank { "Сообщение от сервера" }) },
                 text = { Text(notification.body.ifBlank { notification.displayText }) },
                 confirmButton = {
                     Button(
                         onClick = {
-                            val dismissed = notification
-                            serverNotification = null
-                            scope.launch { runCatching { api.markNotificationRead(dismissed.id) } }
+                            dismissServerNotification(notification)
                         }
                     ) {
                         Text("Понятно")
@@ -866,13 +944,15 @@ fun SovietVpnApp(
                 dismissButton = {
                     TextButton(
                         onClick = {
-                            serverNotification = null
+                            dismissServerNotification(notification)
                         }
                     ) {
-                        Text("Позже")
+                        Text("Закрыть")
                     }
                 }
             )
+            }
+
         }
 
         BottomNav(
@@ -884,8 +964,8 @@ fun SovietVpnApp(
             onScreen = { screen = it },
             light = !darkRoom,
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(horizontal = 18.dp, vertical = 10.dp)
+                .navigationBarsPadding()
+                .padding(horizontal = 18.dp, vertical = 8.dp)
         )
     }
 }

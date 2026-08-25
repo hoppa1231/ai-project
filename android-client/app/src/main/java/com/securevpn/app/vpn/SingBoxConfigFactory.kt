@@ -124,7 +124,7 @@ object SingBoxConfigFactory {
                         .put("type", "tun")
                         .put("tag", "tun-in")
                         .put("interface_name", "tun0")
-                        .put("address", JSONArray().put("172.19.0.1/30"))
+                        .put("address", tunAddresses())
                         .put("mtu", 1400)
                         .put("auto_route", true)
                         .put("strict_route", false)
@@ -181,7 +181,7 @@ object SingBoxConfigFactory {
         outbounds.put(JSONObject().put("type", "block").put("tag", "block"))
 
         val routeRules = baseRouteRules(serverAddresses)
-        val routeRuleSets = geoipRouteRuleSets(policy, finalOutbound)
+        val routeRuleSets = geoipRouteRuleSets(policy)
 
         policy.routeRules
             .filter { it.enabled && it.values.isNotEmpty() }
@@ -231,7 +231,12 @@ object SingBoxConfigFactory {
             else -> vpnOutboundTag
         }
         val values = if (rule.matchType == "GEOIP") {
-            rule.values.mapNotNull(::normalizedGeoipCode).map { "geoip-$it" }
+            rule.values
+                .mapNotNull(::normalizedGeoipCode)
+                // This set contains services blocked in Russia, including Telegram.
+                // Sending it DIRECT makes those services unreachable.
+                .filterNot { rule.action == "DIRECT" && it == "ru-blocked" }
+                .map { "geoip-$it" }
         } else {
             rule.values
         }
@@ -317,7 +322,7 @@ object SingBoxConfigFactory {
                 .put("type", "tun")
                 .put("tag", "tun-in")
                 .put("interface_name", "tun0")
-                .put("address", JSONArray().put("172.19.0.1/30"))
+                .put("address", tunAddresses())
                 .put("mtu", 1400)
                 .put("auto_route", true)
                 .put("strict_route", false)
@@ -326,7 +331,11 @@ object SingBoxConfigFactory {
                 .put("route_exclude_address", routeExcludeAddresses)
         )
 
-    private fun geoipRouteRuleSets(policy: RoutingPolicy, downloadDetour: String = "proxy"): JSONArray {
+    private fun tunAddresses(): JSONArray = JSONArray()
+        .put("172.19.0.1/30")
+        .put("fdfe:dcba:9876::1/126")
+
+    private fun geoipRouteRuleSets(policy: RoutingPolicy, downloadDetour: String = "direct"): JSONArray {
         val codes = policy.routeRules
             .filter { it.enabled && it.matchType == "GEOIP" }
             .flatMap { it.values }

@@ -1,6 +1,6 @@
 # SecureVPN Android Client
 
-Jetpack Compose prototype based on your Figma reference.
+Production-oriented Jetpack Compose client for the SecureVPN control plane and sing-box tunnel runtime.
 
 ## Tech
 - Kotlin
@@ -28,7 +28,7 @@ https://tech-supp-test.ru
 Override it at build time when running against a local backend:
 
 ```bash
-./gradlew :app:assembleDebug -PSECUREVPN_API_BASE_URL=http://10.0.2.2:8080
+bash ./gradlew :app:assembleDebug -PSECUREVPN_API_BASE_URL=http://10.0.2.2:8080
 ```
 
 ## Open in Android Studio
@@ -37,5 +37,7 @@ Override it at build time when running against a local backend:
 3. Run app module `app` on emulator/device.
 
 ## Notes
-- The control-plane API is wired: auth guest, refresh, nodes, quota, issue and revoke.
-- The actual Android VPN tunnel/import flow is still not implemented; the app stores the issued config from the API.
+
+- The control-plane API covers guest auth, refresh, nodes, quota, notifications, issue, and revoke.
+- The issued sing-box configuration is started by an Android VPN foreground service.
+- A start intent is not treated as success: the UI waits for the tunnel runtime to report `STATE_ON` and surfaces bounded startup/configuration failures.

@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.provider.Settings
 import com.securevpn.app.BuildConfig
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -21,17 +23,17 @@ class BackendApi(
         appContext.getSharedPreferences("securevpn_api", Context.MODE_PRIVATE)
     private val baseUrl = apiBaseUrl.trimEnd('/')
 
-    suspend fun bootstrap(): VpnBootstrap {
+    suspend fun bootstrap(): VpnBootstrap = coroutineScope {
         ensureSession()
-        val clientSettings = runCatching { loadClientSettings() }.getOrDefault(ClientSettings.default())
-        val nodes = loadNodes()
-        val quota = runCatching { loadQuota() }.getOrNull()
-        val notifications = runCatching { loadNotifications() }.getOrDefault(emptyList())
-        return VpnBootstrap(
-            nodes = nodes,
-            quota = quota,
-            notifications = notifications,
-            clientSettings = clientSettings,
+        val clientSettings = async { runCatching { loadClientSettings() }.getOrDefault(ClientSettings.default()) }
+        val nodes = async { loadNodes() }
+        val quota = async { runCatching { loadQuota() }.getOrNull() }
+        val notifications = async { runCatching { loadNotifications() }.getOrDefault(emptyList()) }
+        VpnBootstrap(
+            nodes = nodes.await(),
+            quota = quota.await(),
+            notifications = notifications.await(),
+            clientSettings = clientSettings.await(),
             activeConfigId = activeConfigId
         )
     }
@@ -52,6 +54,7 @@ class BackendApi(
     suspend fun loadCurrentNotifications(): List<ServerNotification> = loadNotifications()
 
     suspend fun markNotificationRead(notificationId: String) {
+        rememberReadNotification(notificationId)
         authorizedRequest(path = "/notifications/$notificationId/read", method = "POST", body = "{}")
     }
 
@@ -354,12 +357,15 @@ class BackendApi(
     private suspend fun loadNotifications(): List<ServerNotification> {
         val response = authorizedRequest(path = "/notifications")
         val items = JSONObject(response).optJSONArray("notifications") ?: JSONArray()
+        val locallyReadIds = prefs.getStringSet(KEY_READ_NOTIFICATION_IDS, emptySet()).orEmpty()
         return buildList {
             for (index in 0 until items.length()) {
                 val item = items.getJSONObject(index)
+                val id = item.getString("id")
+                if (id in locallyReadIds) continue
                 add(
                     ServerNotification(
-                        id = item.getString("id"),
+                        id = id,
                         title = item.optString("title", "Сообщение"),
                         body = item.optString("body", ""),
                         severity = item.optString("severity", "INFO")
@@ -367,6 +373,16 @@ class BackendApi(
                 )
             }
         }
+    }
+
+    private fun rememberReadNotification(notificationId: String) {
+        if (notificationId.isBlank()) return
+        val readIds = LinkedHashSet(prefs.getStringSet(KEY_READ_NOTIFICATION_IDS, emptySet()).orEmpty())
+        readIds += notificationId
+        while (readIds.size > MAX_LOCAL_READ_NOTIFICATION_IDS) {
+            readIds.remove(readIds.first())
+        }
+        prefs.edit().putStringSet(KEY_READ_NOTIFICATION_IDS, readIds).apply()
     }
 
     private suspend fun authorizedRequest(
@@ -589,6 +605,8 @@ class BackendApi(
         get() = prefs.getString(KEY_ACTIVE_CONFIG_ID, null)
 
     companion object {
+        private const val KEY_READ_NOTIFICATION_IDS = "read_notification_ids"
+        private const val MAX_LOCAL_READ_NOTIFICATION_IDS = 200
         private val locallyInactiveRevokeStatuses = setOf("REVOKED", "EXPIRED", "FAILED")
 
         private const val KEY_ACCESS_TOKEN = "access_token"

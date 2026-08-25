@@ -28,6 +28,8 @@ import io.ktor.server.auth.Authentication
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.jwt.jwt
 import io.ktor.server.plugins.calllogging.CallLogging
+import io.ktor.server.plugins.callid.CallId
+import io.ktor.server.plugins.callid.callId
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.respond
@@ -45,6 +47,8 @@ fun Application.module() {
     val context = buildContext(loadAppConfig())
     attributes.put(AppContextKey, context)
     BootstrapSeeder.run(context)
+
+    configureRequestCorrelation()
 
     install(CallLogging) {
         level = Level.INFO
@@ -66,7 +70,7 @@ fun Application.module() {
                     code = cause.code,
                     message = cause.message,
                     details = cause.details,
-                    requestId = call.request.headers["X-Request-Id"]
+                    requestId = call.callId
                 )
             )
         }
@@ -77,7 +81,7 @@ fun Application.module() {
                 ApiError(
                     code = "INTERNAL_ERROR",
                     message = "Internal server error",
-                    requestId = call.request.headers["X-Request-Id"]
+                    requestId = call.callId
                 )
             )
         }
@@ -108,6 +112,17 @@ fun Application.module() {
     startNodeHealthWorker(context)
     if (context.config.telegramAppLoginEnabled && context.config.telegramWebhookSecret.isBlank()) {
         startTelegramAppLoginWorker(context)
+    }
+}
+
+internal fun Application.configureRequestCorrelation() {
+    install(CallId) {
+        retrieveFromHeader("X-Request-Id")
+        generate { java.util.UUID.randomUUID().toString() }
+        verify { requestId ->
+            requestId.length in 8..128 && requestId.all { it.isLetterOrDigit() || it in "-_.:" }
+        }
+        replyToHeader("X-Request-Id")
     }
 }
 
