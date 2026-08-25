@@ -5,26 +5,36 @@
 SecureVPN separates the public product API from infrastructure-specific node management. The Android app trusts one control-plane API. The control plane owns identity, policy, quota, and configuration lifecycle. A private agent on each VPN node owns the local 3x-ui credential and exposes only the operations required by the platform.
 
 ```mermaid
-sequenceDiagram
-    actor User
-    participant App as Android app
-    participant API as Control plane
-    participant DB as PostgreSQL
-    participant Agent as Node agent
-    participant Panel as 3x-ui / Xray
+flowchart LR
+    user["Android user"] --> app["Jetpack Compose app"]
+    app -->|"JWT + HTTPS"| controlPlane["Ktor backend control plane"]
 
-    User->>App: Connect
-    App->>API: POST /vpn/issue (JWT, device)
-    API->>DB: Check identity, device, quota, policy
-    API->>DB: Select healthy route
-    API->>Agent: Provision client (service token)
-    Agent->>Panel: Add inbound client
-    Panel-->>Agent: Provisioned
-    Agent-->>API: Client metadata
-    API->>DB: Persist issued config and audit event
-    API-->>App: Rendered sing-box config
-    App->>App: Start foreground VPN service
-    App-->>User: Connected only after runtime STATE_ON
+    subgraph cloud["CONTROL PLANE (CLOUD)"]
+        direction TB
+        controlPlane --> auth["Auth, devices, quota"]
+        controlPlane --> planner["Policy and route planner"]
+        controlPlane --> workers["Health and traffic workers"]
+        auth --> db[("PostgreSQL")]
+        planner --> db
+        workers --> db
+    end
+
+    controlPlane -->|"Bearer token"| agent["Node agent"]
+    agent --> panel["3x-ui / Xray"]
+    app -->|"Rendered config"| tunnel["sing-box tunnel"]
+    tunnel -->|"Encrypted tunnel"| node["Selected VPN node(s)"]
+
+    classDef appFill fill:#1b1538,stroke:#8c6bff,stroke-width:1.5px,color:#f1ecff;
+    classDef backendFill fill:#132d5f,stroke:#5ba3ff,stroke-width:1.5px,color:#eef5ff;
+    classDef infraFill fill:#102f3a,stroke:#28c7d7,stroke-width:1.5px,color:#ecffff;
+    classDef panelFill fill:#1d163f,stroke:#9371ff,stroke-width:1.5px,color:#f5f0ff;
+    classDef nodeFill fill:#112f1d,stroke:#4cc97f,stroke-width:1.5px,color:#f0fff5;
+
+    class user,app appFill;
+    class controlPlane,auth,planner,workers backendFill;
+    class agent,tunnel infraFill;
+    class panel panelFill;
+    class node nodeFill;
 ```
 
 ## Trust boundaries
