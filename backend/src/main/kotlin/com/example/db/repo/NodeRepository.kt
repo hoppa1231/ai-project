@@ -48,7 +48,8 @@ data class UpdateNodeParams(
 )
 
 class NodeRepository(private val dsl: DSLContext) {
-    fun listPublic(region: String?): List<PublicNode> {
+    fun listPublic(region: String?, includeUnavailable: Boolean = false): List<PublicNode> {
+        val healthFilter = if (includeUnavailable) "" else "AND n.health = 'HEALTHY'"
         val records = if (region.isNullOrBlank()) {
             dsl.fetch(
                 """
@@ -62,7 +63,7 @@ class NodeRepository(private val dsl: DSLContext) {
                     WHERE status = 'ACTIVE'
                     GROUP BY node_id
                 ) c ON c.node_id = n.id
-                WHERE n.status = 'ACTIVE' AND n.health = 'HEALTHY' AND n.node_role IN ('EXIT', 'BOTH')
+                WHERE n.status = 'ACTIVE' $healthFilter AND n.node_role IN ('EXIT', 'BOTH')
                 ORDER BY n.weight DESC, COALESCE(c.cnt, 0) ASC
                 """.trimIndent()
             )
@@ -79,7 +80,7 @@ class NodeRepository(private val dsl: DSLContext) {
                     WHERE status = 'ACTIVE'
                     GROUP BY node_id
                 ) c ON c.node_id = n.id
-                WHERE n.status = 'ACTIVE' AND n.health = 'HEALTHY' AND n.node_role IN ('EXIT', 'BOTH') AND n.region = ?
+                WHERE n.status = 'ACTIVE' $healthFilter AND n.node_role IN ('EXIT', 'BOTH') AND n.region = ?
                 ORDER BY n.weight DESC, COALESCE(c.cnt, 0) ASC
                 """.trimIndent(),
                 region

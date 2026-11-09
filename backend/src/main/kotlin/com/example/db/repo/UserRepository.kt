@@ -133,7 +133,20 @@ class UserRepository(private val dsl: DSLContext) {
         return dsl.fetchOne(
             "SELECT telegram_id FROM users WHERE id = ?",
             userId
-        )?.get("telegram_id", Long::class.java)
+        )?.get("telegram_id", Long::class.javaObjectType)
+    }
+
+    fun telegramProfile(userId: UUID): Triple<Long?, String?, String?> {
+        val rec = dsl.fetchOne(
+            "SELECT telegram_id, telegram_username, telegram_first_name, telegram_last_name FROM users WHERE id = ?",
+            userId
+        ) ?: return Triple(null, null, null)
+        return Triple(
+            rec.get("telegram_id", Long::class.javaObjectType),
+            rec.get("telegram_username", String::class.java),
+            listOfNotNull(rec.get("telegram_first_name", String::class.java), rec.get("telegram_last_name", String::class.java))
+                .joinToString(" ").ifBlank { null }
+        )
     }
 
     fun touchLastLogin(id: UUID) {

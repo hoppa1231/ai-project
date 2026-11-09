@@ -26,7 +26,8 @@ data class QuotaResponse(
     val freeGb: Double,
     val purchasedGb: Double,
     val usedGb: Double,
-    val remainingGb: Double
+    val remainingGb: Double,
+    val limitsEnabled: Boolean = false
 )
 
 fun Application.configureQuotaRoutes(context: AppContext) {
@@ -52,7 +53,8 @@ fun Application.configureQuotaRoutes(context: AppContext) {
                         freeGb = bytesToGb(quota.freeBytes),
                         purchasedGb = bytesToGb(quota.purchasedBytes),
                         usedGb = bytesToGb(quota.usedBytes),
-                        remainingGb = bytesToGb(quota.remainingBytes)
+                        remainingGb = bytesToGb(quota.remainingBytes),
+                        limitsEnabled = context.config.trafficLimitsEnabled
                     )
                 )
             }

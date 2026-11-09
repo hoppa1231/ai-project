@@ -29,12 +29,22 @@ data class AppConfig(
     val issueConfigTtl: Duration,
     val defaultVpnRouteMode: String,
     val cascadeFallbackToSingle: Boolean,
-    val freeGbPerMonth: Long
-)
+    val freeGbPerMonth: Long,
+    val defaultVpnNodeId: String? = null,
+    val trafficLimitsEnabled: Boolean = false,
+    val fallbackGuestNodeIds: List<String> = emptyList()
+) {
+    val guestNodeIds: List<String>
+        get() = (listOfNotNull(defaultVpnNodeId) + fallbackGuestNodeIds).distinct()
+}
 
 fun Application.loadAppConfig(): AppConfig {
     val cfg = environment.config
     return AppConfig(
+        fallbackGuestNodeIds = System.getenv("FALLBACK_GUEST_NODE_IDS").orEmpty()
+            .split(',').map { it.trim() }.filter { it.isNotEmpty() },
+        trafficLimitsEnabled = System.getenv("TRAFFIC_LIMITS_ENABLED")?.toBooleanStrictOrNull() ?: false,
+        defaultVpnNodeId = System.getenv("DEFAULT_VPN_NODE_ID")?.trim()?.takeIf { it.isNotEmpty() },
         dbUrl = cfg.propertyOrNull("app.db.url")?.getString() ?: "jdbc:postgresql://localhost:5432/vpn_cp",
         dbUser = cfg.propertyOrNull("app.db.user")?.getString() ?: "vpn",
         dbPassword = cfg.propertyOrNull("app.db.password")?.getString() ?: "vpn",

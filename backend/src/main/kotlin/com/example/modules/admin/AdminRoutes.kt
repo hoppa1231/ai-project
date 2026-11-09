@@ -25,6 +25,7 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import kotlinx.serialization.Serializable
+import kotlinx.coroutines.CancellationException
 import org.jooq.exception.DataAccessException
 import java.util.UUID
 
@@ -136,6 +137,8 @@ data class NodeClientInventoryResponse(
     val limitIp: Int,
     val subId: String?,
     val telegramId: Long?,
+    val telegramUsername: String?,
+    val telegramName: String?,
     val controlPlaneClientId: String?,
     val userId: String?,
     val deviceId: String?,
@@ -200,6 +203,12 @@ data class AdminUserDevicesResponse(
     val devices: List<AdminDeviceResponse>
 )
 
+@Serializable
+data class AdminMonitorResponse(
+    val clients: List<NodeClientInventoryResponse>,
+    val failedNodes: List<String>
+)
+
 fun Application.configureAdminRoutes(context: AppContext) {
     routing {
         get("/admin") {
@@ -208,6 +217,25 @@ fun Application.configureAdminRoutes(context: AppContext) {
 
         authenticate("auth-jwt") {
             route("/admin") {
+                post("/monitor/sync") {
+                    val principal = call.principal<JWTPrincipal>()
+                        ?: throw ApiException(HttpStatusCode.Unauthorized, "UNAUTHORIZED", "Missing principal")
+                    ensureAdmin(principal)
+                    val failedNodes = mutableListOf<String>()
+                    for (node in context.nodes.listAll()) {
+                        try {
+                            context.nodeClients.upsertSnapshot(node.id, context.xray.listClients(node))
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (_: Exception) {
+                            failedNodes.add(node.name)
+                        }
+                    }
+                    call.respond(AdminMonitorResponse(
+                        context.nodeClients.listAll().map { toNodeClientResponse(context, it) },
+                        failedNodes
+                    ))
+                }
                 route("/nodes") {
                     get {
                         val principal = call.principal<JWTPrincipal>()
@@ -569,6 +597,10 @@ private fun toNodeClientResponse(
     val device = controlPlaneClient?.deviceFingerprintHash
         ?.let(context.devices::findLatestByFingerprintHash)
         ?: controlPlaneClient?.deviceId?.let(context.devices::findDetailsById)
+    // The config owner is authoritative; inventory tgId is a fallback for external clients.
+    val ownerId = controlPlaneClient?.userId
+        ?: client.telegramId?.let(context.users::findByTelegramId)?.id
+    val profile = ownerId?.let(context.users::telegramProfile)
     return NodeClientInventoryResponse(
         id = client.id.toString(),
         nodeId = client.nodeId.toString(),
@@ -585,7 +617,9 @@ private fun toNodeClientResponse(
         expiryTime = client.expiryTime,
         limitIp = client.limitIp,
         subId = client.subId,
-        telegramId = client.telegramId,
+        telegramId = profile?.first ?: client.telegramId?.takeIf { it > 0 },
+        telegramUsername = profile?.second,
+        telegramName = profile?.third,
         controlPlaneClientId = controlPlaneClient?.id?.toString(),
         userId = controlPlaneClient?.userId?.toString(),
         deviceId = controlPlaneClient?.deviceId?.toString(),
@@ -711,11 +745,11 @@ private fun gbToBytes(gb: Long): Long = gb * 1024L * 1024L * 1024L
 
 private val adminPanelHtml = """
 <!doctype html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SecureVPN Admin</title>
+  <title>ЧСПЧ · Управление</title>
   <style>
     :root {
       color-scheme: light;
@@ -806,12 +840,22 @@ private val adminPanelHtml = """
       td { border-bottom: 0; padding: 6px 0; }
       td::before { content: attr(data-label); display: block; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }
     }
+    main { width: min(1440px, 100%); }
+    section { border-radius: 16px; box-shadow: 0 4px 24px #182d4b05; }
+    header { background: #13243b; color: white; }
+    .stats { display: flex; gap: 24px; flex-wrap: wrap; padding: 20px 0; font-size: 16px; }
+    .stats strong { font-size: 28px; display: block; color: var(--accent); }
+    td { overflow-wrap: anywhere; }
+    .table-scroll { overflow-x: auto; }
+    .badge { display: inline-block; padding: 5px 9px; border-radius: 20px; background: #edf3fc; }
+    summary { cursor: pointer; padding: 18px; font-weight: 700; }
+    a { color: var(--accent); }
   </style>
 </head>
 <body>
   <header>
     <div>
-      <h1>SecureVPN Admin</h1>
+      <h1>ЧСПЧ · Управление</h1>
       <div class="muted" id="sessionState">Not signed in</div>
     </div>
     <button class="secondary" id="logoutBtn">Log out</button>
@@ -828,6 +872,20 @@ private val adminPanelHtml = """
       <div class="message" id="loginMessage"></div>
     </section>
 
+    <section id="monitorSection">
+      <h2>Пользователи и VPN</h2>
+      <p class="muted">Активность определяется по росту трафика между снимками. Отсутствие роста не означает отключение. Включённый конфиг не подтверждает подключение.</p>
+      <div class="stats" id="monitorStats"></div>
+      <div class="row">
+        <label>Поиск<input id="monitorSearch" placeholder="Telegram, ID, устройство или конфигурация"></label>
+        <label>Сервер<select id="monitorNode"><option value="">Все серверы</option></select></label>
+        <label>Показать<select id="monitorFilter"><option value="all">Все конфигурации</option><option value="telegram">С Telegram</option><option value="guest">Без Telegram</option><option value="traffic">Есть рост трафика</option></select></label>
+      </div>
+      <div class="row"><button id="monitorRefresh">Обновить мониторинг</button><label>Автообновление<select id="monitorAuto"><option value="15">Каждые 15 секунд</option><option value="30">Каждые 30 секунд</option><option value="0">Выключено</option></select></label></div>
+      <div class="message" id="monitorMessage" role="status" aria-live="polite"></div>
+      <div class="table-scroll"><table><thead><tr><th>Telegram</th><th>Устройство / конфигурация</th><th>Сервер</th><th>Активность</th><th>↑ / ↓</th><th>Данные сервера</th></tr></thead><tbody id="monitorBody"></tbody></table></div>
+    </section>
+    <details><summary>Серверы и инструменты управления</summary>
     <section>
       <h2>Nodes</h2>
       <table>
@@ -866,46 +924,6 @@ private val adminPanelHtml = """
         <button class="secondary" id="cancelEditNodeBtn">Cancel</button>
       </div>
       <div class="message" id="editNodeMessage"></div>
-    </section>
-
-    <section>
-      <h2>Create node</h2>
-      <div class="grid">
-        <label>Name<input id="nodeName"></label>
-        <label>Region<input id="nodeRegion" placeholder="ru"></label>
-        <label>Country code<input id="nodeCountry" placeholder="RU" maxlength="2"></label>
-        <label>Hostname<input id="nodeHostname"></label>
-        <label>Public address<input id="nodePublicAddress"></label>
-        <label>Public port<input id="nodePublicPort" type="number" value="443"></label>
-        <label>API host<input id="nodeApiHost"></label>
-        <label>API port<input id="nodeApiPort" type="number" value="10085"></label>
-        <label>Inbound tag<input id="nodeInboundTag"></label>
-        <label>Reality SNI<input id="nodeRealityServerName" value="www.microsoft.com"></label>
-        <label>Reality public key<input id="nodeRealityPublicKey"></label>
-        <label>Reality short id<input id="nodeRealityShortId"></label>
-        <label>Fingerprint<input id="nodeRealityFingerprint" value="chrome"></label>
-        <label>ALPN<input id="nodeRealityAlpn" value="h2,http/1.1"></label>
-        <label>Role<select id="nodeRole"><option>ENTRY</option><option selected>EXIT</option><option>BOTH</option></select></label>
-        <label>Weight<input id="nodeWeight" type="number" value="100"></label>
-        <label>Max clients<input id="nodeMaxClients" type="number" value="10000"></label>
-      </div>
-      <div class="row">
-        <button id="createNodeBtn">Create node</button>
-      </div>
-      <div class="message" id="createMessage"></div>
-    </section>
-
-    <section>
-      <h2>Grant quota</h2>
-      <div class="row">
-        <label>User email<input id="quotaEmail" type="email"></label>
-        <label>GB<input id="quotaGb" type="number" min="1" value="10"></label>
-        <label>External ref<input id="quotaRef"></label>
-      </div>
-      <div class="row">
-        <button id="grantQuotaBtn">Grant quota</button>
-      </div>
-      <div class="message" id="quotaMessage"></div>
     </section>
 
     <section>
@@ -949,12 +967,13 @@ private val adminPanelHtml = """
       <h2 id="clientsTitle">Node clients</h2>
       <table>
         <thead>
-          <tr><th>Email</th><th>Name</th><th>Enabled</th><th>Total GB</th><th>Used GB</th><th>Actions</th></tr>
+          <tr><th>Пользователь</th><th>Name</th><th>Enabled</th><th>Total GB</th><th>Used GB</th><th>Actions</th></tr>
         </thead>
         <tbody id="clientsBody"></tbody>
       </table>
       <div class="message" id="clientsMessage"></div>
     </section>
+    </details>
   </main>
   <script>
     const state = { token: localStorage.getItem("adminToken") || "", nodes: [], selectedNode: null, selectedNodeName: "", editingNodeId: null };
@@ -968,7 +987,32 @@ private val adminPanelHtml = """
       node.className = "message " + (ok === true ? "ok" : ok === false ? "bad" : "");
     };
     const headers = () => ({ "Content-Type": "application/json", "Authorization": "Bearer " + state.token });
-    async function request(path, options) {
+    let refreshPromise = null, sessionGeneration = 0;
+    function sessionError() {
+      const error = new Error("Сессия завершена. Войдите в панель заново.");
+      error.sessionExpired = true;
+      return error;
+    }
+    function clearSession(expired = false) {
+      sessionGeneration++;
+      state.token = "";
+      localStorage.removeItem("adminToken");
+      localStorage.removeItem("adminRefreshToken");
+      state.nodes = [];
+      monitorRows = []; previousSamples.clear(); renderMonitor();
+      ["nodesBody", "clientsBody", "devicesBody"].forEach(id => el(id).innerHTML = "");
+      cancelEditNode();
+      el("clientsSection").classList.add("hidden");
+      updateSession();
+      setMessage("monitorMessage", expired ? "Сессия завершена. Войдите заново для продолжения мониторинга." : "", expired ? false : undefined);
+      if (expired) setMessage("loginMessage", "Войдите заново. После входа сессия будет обновляться автоматически.", false);
+    }
+    function storeSession(data) {
+      state.token = data.accessToken;
+      localStorage.setItem("adminToken", data.accessToken);
+      if (data.refreshToken) localStorage.setItem("adminRefreshToken", data.refreshToken);
+    }
+    async function rawRequest(path, options) {
       const response = await fetch(path, options || {});
       const text = await response.text();
       let data = null;
@@ -976,13 +1020,64 @@ private val adminPanelHtml = """
         try { data = JSON.parse(text); } catch (_) { data = text; }
       }
       if (!response.ok) {
-        const message = data && data.message ? data.message : response.status + " " + response.statusText;
-        throw new Error(message);
+        const error = new Error(data && data.message ? data.message : response.status + " " + response.statusText);
+        error.status = response.status;
+        throw error;
       }
       return data;
     }
+    async function refreshSession(rejectedToken) {
+      if (refreshPromise) return refreshPromise;
+      const generation = sessionGeneration;
+      const refresh = async () => {
+        if (generation !== sessionGeneration || !state.token) throw sessionError();
+        const storedToken = localStorage.getItem("adminToken");
+        if (storedToken && storedToken !== rejectedToken) { state.token = storedToken; return; }
+        const refreshToken = localStorage.getItem("adminRefreshToken");
+        if (!refreshToken) { clearSession(true); throw sessionError(); }
+        try {
+          const data = await rawRequest("/auth/refresh", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken })
+          });
+          if (generation !== sessionGeneration || !localStorage.getItem("adminToken")) throw sessionError();
+          storeSession(data);
+        } catch (error) {
+          if (error.status === 401 || error.status === 403) {
+            if (generation === sessionGeneration) clearSession(true);
+            throw sessionError();
+          }
+          throw error;
+        }
+      };
+      // Refresh tokens rotate: serialize refreshes within this tab and across browser tabs.
+      refreshPromise = (navigator.locks ? navigator.locks.request("chspch-admin-refresh", refresh) : refresh());
+      try { await refreshPromise; } finally { refreshPromise = null; }
+    }
+    async function request(path, options) {
+      if (!path.startsWith("/admin/")) return rawRequest(path, options);
+      if (!state.token) throw sessionError();
+      const rejectedToken = state.token;
+      const generation = sessionGeneration;
+      const send = async () => {
+        const data = await rawRequest(path, { ...options, headers: headers() });
+        if (generation !== sessionGeneration) throw sessionError();
+        return data;
+      };
+      try { return await send(); }
+      catch (error) {
+        if (error.status !== 401) throw error;
+        await refreshSession(rejectedToken);
+        if (!state.token) throw sessionError();
+        try { return await send(); }
+        catch (retryError) {
+          if (retryError.status === 401) { clearSession(true); throw sessionError(); }
+          throw retryError;
+        }
+      }
+    }
     function updateSession() {
-      el("sessionState").textContent = state.token ? "Signed in" : "Not signed in";
+      el("sessionState").textContent = state.token ? "Вход выполнен" : "Требуется вход";
       el("logoutBtn").disabled = !state.token;
     }
     async function login() {
@@ -992,11 +1087,23 @@ private val adminPanelHtml = """
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: el("email").value, password: el("password").value })
       });
-      state.token = data.accessToken;
-      localStorage.setItem("adminToken", state.token);
+      let fingerprint = localStorage.getItem("adminBrowserFingerprint");
+      if (!fingerprint) {
+        fingerprint = "admin-browser-" + crypto.randomUUID();
+        localStorage.setItem("adminBrowserFingerprint", fingerprint);
+      }
+      const session = await rawRequest("/devices/bind", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + data.accessToken },
+        body: JSON.stringify({ deviceFingerprint: fingerprint, deviceName: "Админ-панель · браузер", platform: "web", appVersion: "admin-session-v2" })
+      });
+      sessionGeneration++;
+      storeSession(session);
       updateSession();
       setMessage("loginMessage", "Signed in", true);
+      el("password").value = "";
       await loadNodes();
+      await loadMonitor();
     }
     async function loadNodes() {
       if (!state.token) {
@@ -1009,6 +1116,10 @@ private val adminPanelHtml = """
       setMessage("nodesMessage", state.nodes.length ? "" : "No nodes yet", true);
     }
     function renderNodes() {
+      const selected = el("monitorNode").value;
+      el("monitorNode").innerHTML = '<option value="">Все серверы</option>' + state.nodes.map(n => '<option value="' + esc(n.id) + '">' + esc(n.name) + '</option>').join("");
+      el("monitorNode").value = selected;
+      renderMonitor();
       el("nodesBody").innerHTML = "";
       state.nodes.forEach((node) => {
         const tr = document.createElement("tr");
@@ -1118,18 +1229,6 @@ private val adminPanelHtml = """
       setMessage("editNodeMessage", "Node updated", true);
       await loadNodes();
     }
-    async function createNode() {
-      const payload = nodePayload("node");
-      await request("/admin/nodes", { method: "POST", headers: headers(), body: JSON.stringify(payload) });
-      setMessage("createMessage", "Node created", true);
-      await loadNodes();
-    }
-    async function grantQuota() {
-      const payload = { email: el("quotaEmail").value, gb: Number(el("quotaGb").value), source: "admin_panel" };
-      if (el("quotaRef").value) payload.externalRef = el("quotaRef").value;
-      const data = await request("/admin/quota/grant", { method: "POST", headers: headers(), body: JSON.stringify(payload) });
-      setMessage("quotaMessage", "Granted. Remaining: " + data.remainingGb.toFixed(2) + " GB", true);
-    }
     async function sendNotice() {
       const payload = {
         title: el("noticeTitle").value,
@@ -1149,7 +1248,7 @@ private val adminPanelHtml = """
       const data = await request("/admin/users/devices?email=" + encodeURIComponent(email), { headers: headers() });
       renderUserDevices(data.devices || []);
       const user = data.user || {};
-      const label = user.email ? ("User: " + esc(user.email) + " · " + esc(user.accountType)) : "Control-plane device";
+      const label = user.id ? ("Учётная запись · " + user.accountType) : "Устройство";
       setMessage("devicesMessage", label + " · matched by " + esc(data.matchedBy || "query") + " · devices: " + (data.devices || []).length, true);
     }
     function renderUserDevices(devices) {
@@ -1182,7 +1281,7 @@ private val adminPanelHtml = """
         const tr = document.createElement("tr");
         const used = Number(client.upBytes || 0) + Number(client.downBytes || 0);
         tr.innerHTML =
-          "<td data-label='Email'>" + esc(client.email) + "</td>" +
+          "<td data-label='Пользователь'>" + esc(client.telegramUsername ? "@" + client.telegramUsername : client.telegramName || (client.telegramId ? "Telegram ID " + client.telegramId : "Гость / без привязки")) + "</td>" +
           "<td data-label='Name'>" + esc(client.deviceName || "") + "</td>" +
           "<td data-label='Enabled'>" + client.enabled + "</td>" +
           "<td data-label='Total GB'><input class='total-gb-input' data-field='totalGb' type='number' min='0' value='" + gb(client.totalBytes) + "'></td>" +
@@ -1209,7 +1308,7 @@ private val adminPanelHtml = """
     }
     async function deleteClient(email) {
       if (!state.selectedNode) return;
-      if (!confirm("Delete client " + email + "?")) return;
+      if (!confirm("Удалить выбранную VPN-конфигурацию?")) return;
       setMessage("clientsMessage", "Deleting...");
       const data = await request("/admin/nodes/" + state.selectedNode + "/clients/" + encodeURIComponent(email), {
         method: "DELETE",
@@ -1218,21 +1317,69 @@ private val adminPanelHtml = """
       renderClients(data.clients || []);
       setMessage("clientsMessage", "Client deleted", true);
     }
+
+    let monitorRows = [], previousSamples = new Map(), monitorBusy = false, lastMonitor = 0;
+    const dateLabel = value => value ? new Date(value).toLocaleString("ru-RU") : "—";
+    async function loadMonitor() {
+      if (!state.token || monitorBusy) return;
+      monitorBusy = true;
+      try {
+        const data = await request("/admin/monitor/sync", { method: "POST", headers: headers() });
+        const rows = data.clients;
+        if (!state.token) return;
+        const next = new Map();
+        monitorRows = rows.map(c => {
+          const key = c.nodeId + ":" + c.id, prev = previousSamples.get(key);
+          const fresh = Date.now() - Date.parse(c.lastSyncedAt) < 120000;
+          const growth = fresh && prev && Date.parse(c.lastSyncedAt) > Date.parse(prev.time) &&
+            (c.upBytes > prev.up || c.downBytes > prev.down);
+          next.set(key, { up: c.upBytes, down: c.downBytes, time: c.lastSyncedAt });
+          return { ...c, growth: !!growth, fresh };
+        });
+        previousSamples = next;
+        lastMonitor = Date.now();
+        renderMonitor();
+        setMessage("monitorMessage", "Обновлено: " + new Date().toLocaleTimeString("ru-RU") + (data.failedNodes.length ? " · Нет связи с серверами: " + data.failedNodes.join(", ") : " · Серверы опрошены") + " · Снимки старше 2 минут устарели", !data.failedNodes.length);
+      } catch (error) { if (error.sessionExpired) return; setMessage("monitorMessage", "Не удалось обновить: " + error.message + ". Показаны прежние данные.", false); }
+      finally { monitorBusy = false; }
+    }
+    function renderMonitor() {
+      const q = el("monitorSearch").value.trim().toLowerCase(), filter = el("monitorFilter").value;
+      const rows = monitorRows.filter(c => (!el("monitorNode").value || c.nodeId === el("monitorNode").value) &&
+        (filter !== "telegram" || c.telegramId) && (filter !== "guest" || !c.telegramId) &&
+        (filter !== "traffic" || c.growth) &&
+        [c.telegramId, c.telegramUsername, c.telegramName, c.deviceName, c.email, c.userId].join(" ").toLowerCase().includes(q));
+      el("monitorStats").innerHTML = "<span><strong>" + new Set(monitorRows.filter(c => c.telegramId).map(c => c.telegramId)).size +
+        "</strong>Telegram-пользователей</span><span><strong>" + monitorRows.length + "</strong>Конфигураций</span><span><strong>" +
+        monitorRows.filter(c => c.growth).length + "</strong>С ростом трафика</span>";
+      el("monitorBody").innerHTML = rows.map(c => {
+        const node = state.nodes.find(n => n.id === c.nodeId);
+        const username = c.telegramUsername || "";
+        const link = /^[a-zA-Z0-9_]{5,32}$/.test(username) ? '<a target="_blank" rel="noopener noreferrer" href="https://t.me/' + encodeURIComponent(username) + '">@' + esc(username) + '</a>' : esc(username);
+        return "<tr><td data-label='Telegram'>" + (c.telegramId ? (esc(c.telegramName || "Telegram") + "<br>" + link + "<br><small>ID " + esc(c.telegramId) + "</small>") : "<span class='muted'>Без привязки</span>") +
+          "</td><td data-label='Устройство'>" + esc(c.deviceName || "Неизвестное устройство") + "<br><small>" + esc(c.telegramUsername ? "@" + c.telegramUsername : c.telegramId ? "Telegram ID " + c.telegramId : "Гостевая конфигурация") + "</small></td><td data-label='Сервер'>" + esc(node ? node.name : c.nodeId) +
+          "</td><td data-label='Активность'><span class='badge'>" + (!c.fresh ? "Данные устарели" : c.growth ? "Есть трафик" : "Нет замера роста") + "</span><br><small>Конфиг: " + (c.enabled ? "включён" : "выключен") +
+          "</small></td><td data-label='Трафик'>↑ " + gb(c.upBytes) + " ГБ<br>↓ " + gb(c.downBytes) + " ГБ</td><td data-label='Синхронизация'>" + esc(dateLabel(c.lastSyncedAt)) + "</td></tr>";
+      }).join("") || "<tr><td colspan='6'>Пользователи не найдены</td></tr>";
+    }
+    ["monitorSearch", "monitorNode", "monitorFilter"].forEach(id => el(id).addEventListener("input", renderMonitor));
+    el("monitorRefresh").onclick = loadMonitor;
+    setInterval(() => { const seconds = Number(el("monitorAuto").value); if (!document.hidden && seconds && Date.now() - lastMonitor >= seconds * 1000) loadMonitor(); }, 1000);
+
     el("loginBtn").onclick = () => login().catch((error) => setMessage("loginMessage", error.message, false));
     el("loadBtn").onclick = () => loadNodes().catch((error) => setMessage("nodesMessage", error.message, false));
-    el("logoutBtn").onclick = () => {
-      state.token = "";
-      localStorage.removeItem("adminToken");
-      updateSession();
-    };
-    el("createNodeBtn").onclick = () => createNode().catch((error) => setMessage("createMessage", error.message, false));
+    el("logoutBtn").onclick = () => clearSession();
+    window.addEventListener("storage", event => {
+      if (event.key !== "adminToken") return;
+      if (!event.newValue) clearSession();
+      else { state.token = event.newValue; updateSession(); }
+    });
     el("saveEditedNodeBtn").onclick = () => saveEditedNode().catch((error) => setMessage("editNodeMessage", error.message, false));
     el("cancelEditNodeBtn").onclick = cancelEditNode;
-    el("grantQuotaBtn").onclick = () => grantQuota().catch((error) => setMessage("quotaMessage", error.message, false));
     el("sendNoticeBtn").onclick = () => sendNotice().catch((error) => setMessage("noticeMessage", error.message, false));
     el("loadDevicesBtn").onclick = () => loadUserDevices().catch((error) => setMessage("devicesMessage", error.message, false));
     updateSession();
-    if (state.token) loadNodes().catch((error) => setMessage("nodesMessage", error.message, false));
+    if (state.token) loadNodes().then(loadMonitor).catch((error) => setMessage("nodesMessage", error.message, false));
   </script>
 </body>
 </html>

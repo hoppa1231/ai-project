@@ -18,6 +18,7 @@ import com.example.modules.notifications.configureNotificationRoutes
 import com.example.modules.openapi.configureOpenApiRoutes
 import com.example.modules.policy.configurePolicyRoutes
 import com.example.modules.quota.configureQuotaRoutes
+import com.example.modules.vpn.startVpnRevocationWorker
 import com.example.modules.vpn.configureVpnRoutes
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
@@ -110,6 +111,7 @@ fun Application.module() {
     configureOpenApiRoutes()
 
     startNodeHealthWorker(context)
+    startVpnRevocationWorker(context)
     if (context.config.telegramAppLoginEnabled && context.config.telegramWebhookSecret.isBlank()) {
         startTelegramAppLoginWorker(context)
     }

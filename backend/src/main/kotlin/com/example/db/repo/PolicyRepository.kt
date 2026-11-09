@@ -28,7 +28,7 @@ class PolicyRepository(private val dsl: DSLContext) {
                 include_apps, exclude_apps, include_domains, exclude_domains,
                 policy_hash, status
             )
-            VALUES (?, 1, 'VPN', '{}', '{}', '{}', '{}', ?, 'ACTIVE')
+            VALUES (?, 1, 'DIRECT', '{}', '{}', '{}', '{}', ?, 'ACTIVE')
             ON CONFLICT (user_id) DO NOTHING
             """.trimIndent(),
             userId,
@@ -56,6 +56,7 @@ class PolicyRepository(private val dsl: DSLContext) {
             SELECT id, rule_key, name, description, priority, enabled,
                    match_type, match_values, action, editable, revision
             FROM routing_default_rules
+            WHERE action = 'VPN'
             ORDER BY priority ASC, rule_key ASC
             """.trimIndent()
         ).map { rec ->
@@ -71,7 +72,7 @@ class PolicyRepository(private val dsl: DSLContext) {
                 matchType = rec.get("match_type", String::class.java)!!,
                 values = toStringList(rec.get("match_values", SqlArray::class.java)),
                 action = rec.get("action", String::class.java)!!,
-                editable = rec.get("editable", Boolean::class.java)!!,
+                editable = false,
                 revision = rec.get("revision", Int::class.java)!!
             )
         }
@@ -108,29 +109,12 @@ class PolicyRepository(private val dsl: DSLContext) {
 
     fun listEffectiveRouteRules(userId: UUID): List<RoutingRuleEntity> {
         val defaults = listDefaultRouteRules()
+        val telegramId = dsl.fetchOne("SELECT telegram_id FROM users WHERE id = ?", userId)?.get("telegram_id")
+        if (telegramId == null) return defaults.filter { it.defaultRuleKey in setOf("vpn-telegram-domains", "vpn-telegram-ip") }
         val userRules = listUserRouteRules(userId)
-        val overrides = userRules
-            .filter { it.defaultRuleKey != null }
-            .associateBy { it.defaultRuleKey }
-        val customRules = userRules.filter { it.defaultRuleKey == null }
-
-        val defaultRules = defaults.map { defaultRule ->
-            val override = overrides[defaultRule.defaultRuleKey] ?: return@map defaultRule
-            defaultRule.copy(
-                id = override.id,
-                userId = userId,
-                name = override.name,
-                priority = override.priority,
-                enabled = override.enabled,
-                matchType = override.matchType,
-                values = override.values,
-                action = override.action
-            )
-        }
-
-        return (defaultRules + customRules)
-            .sortedWith(compareBy<RoutingRuleEntity> { it.priority }.thenBy { it.name })
+        return mandatoryServiceRules(defaults, userRules)
     }
+
 
     fun updateCurrent(
         userId: UUID,
@@ -264,4 +248,14 @@ class PolicyRepository(private val dsl: DSLContext) {
             "\"$escaped\""
         }
     }
+}
+
+/** Built-in services remain mandatory even when the database contains a legacy override. */
+internal fun mandatoryServiceRules(
+    defaults: List<RoutingRuleEntity>, userRules: List<RoutingRuleEntity>
+): List<RoutingRuleEntity> {
+    val customRules = userRules.filter { it.defaultRuleKey == null }
+    val mandatory = defaults.map { it.copy(enabled = true, editable = false) }
+    return (mandatory + customRules)
+        .sortedWith(compareBy<RoutingRuleEntity> { it.priority }.thenBy { it.name })
 }

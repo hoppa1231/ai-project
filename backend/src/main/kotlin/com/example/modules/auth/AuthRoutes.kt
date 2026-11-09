@@ -183,7 +183,7 @@ fun Application.configureAuthRoutes(context: AppContext) {
                     throw ApiException(HttpStatusCode.Conflict, "EMAIL_ALREADY_EXISTS", "Email already exists")
                 }
 
-                val policyHash = PolicyHashing.hash("VPN", emptyList(), emptyList(), emptyList(), emptyList())
+                val policyHash = PolicyHashing.hash("DIRECT", emptyList(), emptyList(), emptyList(), emptyList())
                 context.policies.createDefault(user.id, policyHash)
 
                 val access = context.jwt.issueAccess(
@@ -228,7 +228,7 @@ fun Application.configureAuthRoutes(context: AppContext) {
                 val guestPasswordHash = context.passwordHasher.hash(UUID.randomUUID().toString())
                 val user = context.users.createGuest(guestEmail, guestPasswordHash)
 
-                val policyHash = PolicyHashing.hash("VPN", emptyList(), emptyList(), emptyList(), emptyList())
+                val policyHash = PolicyHashing.hash("DIRECT", emptyList(), emptyList(), emptyList(), emptyList())
                 context.policies.createDefault(user.id, policyHash)
 
                 val fingerprintHash = Hashing.sha256Hex("${context.config.hashPepper}:${body.deviceFingerprint}")
@@ -642,7 +642,7 @@ private fun issueTelegramSession(
         throw ApiException(HttpStatusCode.Forbidden, "USER_DISABLED", "User is disabled")
     }
 
-    val policyHash = PolicyHashing.hash("VPN", emptyList(), emptyList(), emptyList(), emptyList())
+    val policyHash = PolicyHashing.hash("DIRECT", emptyList(), emptyList(), emptyList(), emptyList())
     context.policies.createDefault(user.id, policyHash)
     context.users.touchLastLogin(user.id)
 
@@ -729,7 +729,7 @@ private fun telegramLoginPage(botUsername: String, completePath: String): String
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Telegram login</title>
+  <title>Вход через Телеграм</title>
   <style>
     html, body { margin: 0; min-height: 100%; background: #f7f2e6; color: #2b2118; font-family: system-ui, sans-serif; }
     body { display: grid; place-items: center; padding: 24px; box-sizing: border-box; }
@@ -740,7 +740,8 @@ private fun telegramLoginPage(botUsername: String, completePath: String): String
 </head>
 <body>
   <main>
-    <h1>Вход через Telegram</h1>
+    <h1>Вход через Телеграм</h1>
+    <p role="note"><strong>Откройте эту страницу с включённым ВПН.</strong> Он нужен для загрузки входа через Телеграм.</p>
     <p>Подтвердите вход, затем мы вернем вас в приложение.</p>
     <script async src="https://telegram.org/js/telegram-widget.js?22"
       data-telegram-login="$safeBotUsername"
@@ -764,7 +765,7 @@ private fun sanitizeTelegramCompletePath(path: String): String {
 private fun telegramCompletePage(payload: String): String {
     val encodedPayload = URLEncoder.encode(payload, Charsets.UTF_8.name()).replace("+", "%20")
     val appUri = "securevpn://telegram-auth?payload=$encodedPayload"
-    val intentUri = "intent://telegram-auth?payload=$encodedPayload#Intent;scheme=securevpn;package=com.securevpn.app;end"
+    val intentUri = "intent://telegram-auth?payload=$encodedPayload#Intent;scheme=securevpn;package=app.chspch.client;end"
     return """
 <!doctype html>
 <html lang="ru">

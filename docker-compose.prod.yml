@@ -18,7 +18,7 @@ services:
       retries: 20
 
   backend:
-    build: .
+    build: ./backend
     restart: unless-stopped
     depends_on:
       postgres:

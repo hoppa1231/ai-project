@@ -21,6 +21,7 @@ import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import kotlinx.serialization.Serializable
 import java.net.InetAddress
+import java.net.IDN
 
 @Serializable
 data class PolicyResponse(
@@ -91,11 +92,17 @@ fun Application.configurePolicyRoutes(context: AppContext) {
                     val principal = call.principal<JWTPrincipal>()
                         ?: throw ApiException(HttpStatusCode.Unauthorized, "UNAUTHORIZED", "Missing principal")
                     val userId = principal.requireUserId()
+                    if (context.users.getTelegramId(userId) == null) {
+                        throw ApiException(HttpStatusCode.Forbidden, "TELEGRAM_REQUIRED", "Sign in via Telegram to edit services")
+                    }
                     val body = call.receive<UpdatePolicyRequest>()
+                    if (body.includeApps.isNotEmpty() || body.excludeApps.isNotEmpty() || body.includeDomains.isNotEmpty() || body.excludeDomains.isNotEmpty()) {
+                        throw ApiException(HttpStatusCode.BadRequest, "LEGACY_RULES_DISABLED", "Use routeRules")
+                    }
 
                     val route = body.defaultRoute.uppercase()
-                    if (route != "VPN" && route != "DIRECT") {
-                        throw ApiException(HttpStatusCode.BadRequest, "INVALID_DEFAULT_ROUTE", "defaultRoute must be VPN or DIRECT")
+                    if (route != "DIRECT") {
+                        throw ApiException(HttpStatusCode.BadRequest, "INVALID_DEFAULT_ROUTE", "defaultRoute must be DIRECT")
                     }
 
                     val normalizedRouteRules = body.routeRules?.let { rules ->
@@ -187,10 +194,16 @@ private fun normalizeRouteRules(context: AppContext, rules: List<RouteRuleReques
             ?: rule.defaultRuleKey?.let {
                 throw ApiException(HttpStatusCode.BadRequest, "UNKNOWN_DEFAULT_RULE", "Unknown default rule: $it")
             }
+        if (defaultRule != null && defaultRule.name == rule.name.trim() && defaultRule.enabled == rule.enabled &&
+            defaultRule.priority == rule.priority && defaultRule.matchType == rule.matchType &&
+            defaultRule.values.toSet() == rule.values.toSet() && defaultRule.action == rule.action) return@mapIndexedNotNull null
         if (defaultRule != null && !defaultRule.editable) {
             throw ApiException(HttpStatusCode.BadRequest, "DEFAULT_RULE_LOCKED", "Default rule cannot be edited")
         }
         val matchType = normalizeMatchType(rule.matchType)
+        if (defaultRule == null && matchType !in setOf("DOMAIN", "DOMAIN_SUFFIX", "IP_CIDR", "APP_PACKAGE")) {
+            throw ApiException(HttpStatusCode.BadRequest, "INVALID_MATCH_TYPE", "Use domain, IP or application")
+        }
         val action = normalizeAction(rule.action)
         val values = normalizeValues(matchType, rule.values)
         if (defaultRule != null && defaultRule.isSameRule(rule, matchType, values, action)) {
@@ -236,7 +249,7 @@ private fun normalizeMatchType(raw: String): String {
 
 private fun normalizeAction(raw: String): String {
     val value = raw.trim().uppercase()
-    if (value in ACTIONS) return value
+    if (value == "VPN") return value
     throw ApiException(HttpStatusCode.BadRequest, "INVALID_RULE_ACTION", "Invalid route rule action")
 }
 
@@ -262,8 +275,12 @@ private fun normalizeValues(matchType: String, rawValues: List<String>): List<St
     return values
 }
 
-private fun normalizeDomainValue(value: String): String {
-    val normalized = value.removePrefix(".").lowercase()
+internal fun normalizeDomainValue(value: String): String {
+    val normalized = runCatching { IDN.toASCII(value.removePrefix(".").trimEnd('.'), IDN.USE_STD3_ASCII_RULES).lowercase() }
+        .getOrElse { throw ApiException(HttpStatusCode.BadRequest, "INVALID_DOMAIN_RULE", "Invalid domain") }
+    if (normalized.substringAfterLast('.') in setOf("ru", "su", "xn--p1ai")) {
+        throw ApiException(HttpStatusCode.BadRequest, "DOMAIN_ZONE_FORBIDDEN", "Domains in .ru, .рф and .su cannot be proxied")
+    }
     if (normalized.length > 253 || !DOMAIN_VALUE_REGEX.matches(normalized)) {
         throw ApiException(HttpStatusCode.BadRequest, "INVALID_DOMAIN_RULE", "Invalid domain rule value")
     }
@@ -284,7 +301,7 @@ private fun normalizeCidrValue(value: String): String {
     val prefix = parts[1].toIntOrNull()
         ?: throw ApiException(HttpStatusCode.BadRequest, "INVALID_CIDR_RULE", "Invalid CIDR rule value")
     val maxPrefix = if (parts[0].contains(':')) 128 else 32
-    if (prefix !in 0..maxPrefix) {
+    if (prefix !in 1..maxPrefix) {
         throw ApiException(HttpStatusCode.BadRequest, "INVALID_CIDR_RULE", "Invalid CIDR rule value")
     }
     return "${parts[0]}/$prefix"
@@ -301,7 +318,7 @@ private fun isIpLiteral(value: String): Boolean {
 }
 
 private fun normalizePackageValue(value: String): String {
-    val normalized = value.lowercase()
+    val normalized = value
     if (!PACKAGE_VALUE_REGEX.matches(normalized)) {
         throw ApiException(HttpStatusCode.BadRequest, "INVALID_PACKAGE_RULE", "Invalid package rule value")
     }
@@ -341,11 +358,10 @@ private fun RoutingRuleEntity.toHashInput(): PolicyRuleHashInput {
 }
 
 private val MATCH_TYPES = setOf("DOMAIN", "DOMAIN_SUFFIX", "DOMAIN_KEYWORD", "IP_CIDR", "APP_PACKAGE", "GEOIP")
-private val ACTIONS = setOf("VPN", "DIRECT", "BLOCK")
-private val DOMAIN_VALUE_REGEX = Regex("^[a-z0-9*_-]+(\\.[a-z0-9*_-]+)*$")
+private val DOMAIN_VALUE_REGEX = Regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$")
 private val IPV4_VALUE_REGEX = Regex("^\\d{1,3}(\\.\\d{1,3}){3}$")
 private val IPV6_VALUE_REGEX = Regex("^[0-9a-fA-F:.]+$")
-private val PACKAGE_VALUE_REGEX = Regex("^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$")
+private val PACKAGE_VALUE_REGEX = Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$")
 private val GEOIP_VALUE_REGEX = Regex("^[a-z]{2}(-[a-z0-9]+)*$")
 private const val MAX_ROUTE_RULES = 60
 private const val MAX_ROUTE_RULE_VALUES = 80

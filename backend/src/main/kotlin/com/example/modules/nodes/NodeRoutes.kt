@@ -2,6 +2,7 @@ package com.example.modules.nodes
 
 import com.example.common.ApiException
 import com.example.config.AppContext
+import com.example.security.requireUserId
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
@@ -38,7 +39,9 @@ fun Application.configureNodeRoutes(context: AppContext) {
                 }
 
                 val region = call.request.queryParameters["region"]
-                val nodes = context.nodes.listPublic(region).map {
+                val limitedAccess = context.users.getTelegramId(principal.requireUserId()) == null
+                val nodes = context.nodes.listPublic(if (limitedAccess) null else region, includeUnavailable = true)
+                    .filter { if (limitedAccess) it.id.toString() in context.config.guestNodeIds else it.id.toString() !in context.config.guestNodeIds }.map {
                     NodeResponse(
                         id = it.id.toString(),
                         name = it.name,

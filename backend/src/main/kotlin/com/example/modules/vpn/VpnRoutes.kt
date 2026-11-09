@@ -213,22 +213,40 @@ fun Application.configureVpnRoutes(context: AppContext) {
                     if (device.status != "ENABLED") {
                         throw ApiException(HttpStatusCode.Forbidden, "DEVICE_DISABLED", "Device disabled")
                     }
-                    val requestedRouteMode = normalizeRouteMode(body.routeMode ?: body.mode ?: context.config.defaultVpnRouteMode)
+                    val limitedAccess = context.users.getTelegramId(userId) == null
+                    val guestNode = if (limitedAccess) {
+                        val guestIds = context.config.guestNodeIds
+                        if (guestIds.isEmpty()) throw ApiException(HttpStatusCode.ServiceUnavailable, "DEFAULT_NODE_NOT_CONFIGURED", "Default Telegram server is not configured")
+                        selectGuestNode(guestIds, body.exitNodeId) { rawId ->
+                            runCatching { UUID.fromString(rawId) }.getOrNull()?.let(context.nodes::findHealthyById)
+                        } ?: throw ApiException(HttpStatusCode.ServiceUnavailable, "DEFAULT_NODE_UNAVAILABLE", "All Telegram servers are unavailable")
+                    } else null
+                    val requestedRouteMode = if (limitedAccess) "SINGLE" else normalizeRouteMode(body.routeMode ?: body.mode ?: context.config.defaultVpnRouteMode)
 
                     val byKey = context.vpn.findByIdempotency(userId, idempotencyKey)
-                    if (byKey != null) {
+                    if (byKey != null && byKey.status == "ISSUED" && byKey.expiresAt.isAfter(Instant.now()) &&
+                        context.nodes.findHealthyById(byKey.nodeId) != null &&
+                        (!limitedAccess || byKey.nodeId == guestNode?.id)) {
                         call.respond(buildIssueResponse(context, byKey))
                         return@post
                     }
 
+                    if (byKey != null) throw ApiException(HttpStatusCode.Conflict,
+                        "CONFIG_UNAVAILABLE", "Previous config is unavailable; retry with a new Idempotency-Key")
+
+                    context.vpn.pendingRevocations().filter {
+                        it.userId == userId && (it.deviceId == deviceId || it.deviceFingerprintHash == device.fingerprintHash)
+                    }.forEach { context.vpn.deferRevocation(it.id) }
                     val active = context.vpn.findActiveByDeviceIdentity(userId, deviceId, device.fingerprintHash)
                     if (active != null) {
-                        if (body.forceRotate) {
-                            try {
-                                revokeIssuedConfig(context, active, "force_rotate")
-                            } catch (e: Exception) {
-                                throw ApiException(HttpStatusCode.BadGateway, "XRAY_REMOVE_FAILED", "Failed to rotate active VPN config")
-                            }
+                        val healthy = context.nodes.findHealthyById(active.nodeId) != null &&
+                            context.vpn.listConfigHops(active.id).all { context.nodes.findById(it.nodeId)?.health == "HEALTHY" }
+                        val targetId = guestNode?.id?.toString() ?: body.exitNodeId?.takeIf { it.isNotBlank() }
+                        if (!canReuseVpnConfig(body.forceRotate, healthy, active.expiresAt.isAfter(Instant.now()),
+                                active.nodeId.toString(), targetId, active.routeMode, requestedRouteMode)) {
+                            retireVpnConfig(healthy,
+                                revoke = { revokeIssuedConfig(context, active, "replace_config") },
+                                defer = { context.vpn.deferRevocation(active.id) })
                         } else {
                             call.respond(buildIssueResponse(context, active).copy(requestedRouteMode = requestedRouteMode))
                             return@post
@@ -241,7 +259,7 @@ fun Application.configureVpnRoutes(context: AppContext) {
                     val user = context.users.findById(userId)
                         ?: throw ApiException(HttpStatusCode.Unauthorized, "UNAUTHORIZED", "User not found")
                     val quota = context.quota.current(userId, context.config.freeGbPerMonth)
-                    if (quota.remainingBytes <= 0) {
+                    if (context.config.trafficLimitsEnabled && quota.remainingBytes <= 0) {
                         if (user.accountType == "GUEST") {
                             throw ApiException(
                                 HttpStatusCode.PaymentRequired,
@@ -259,13 +277,15 @@ fun Application.configureVpnRoutes(context: AppContext) {
                     var routeMode = requestedRouteMode
                     var routeFallbackReason: String? = null
                     val exitRegion = body.exitRegion ?: body.region
-                    val exitNode = body.exitNodeId?.takeIf { it.isNotBlank() }?.let { rawId ->
+                    val exitNode = guestNode ?: body.exitNodeId?.takeIf { it.isNotBlank() }?.let { rawId ->
                         val nodeId = runCatching { UUID.fromString(rawId) }.getOrElse {
                             throw ApiException(HttpStatusCode.BadRequest, "INVALID_EXIT_NODE_ID", "Invalid exitNodeId")
                         }
                         context.nodes.findHealthyById(nodeId)
                             ?: throw ApiException(HttpStatusCode.ServiceUnavailable, "EXIT_NODE_UNAVAILABLE", "Selected exit node is unavailable")
-                    } ?: (context.nodes.pickNode(exitRegion)
+                    } ?: (context.nodes.listPublic(exitRegion)
+                        .firstOrNull { it.id.toString() !in context.config.guestNodeIds }
+                        ?.let { context.nodes.findHealthyById(it.id) }
                         ?: throw ApiException(HttpStatusCode.ServiceUnavailable, "NO_HEALTHY_NODES", "No healthy exit node available"))
 
                     val routePlan = planRoute(
@@ -311,7 +331,7 @@ fun Application.configureVpnRoutes(context: AppContext) {
                                     uuid = vlessUuid,
                                     flow = flow,
                                     expiresAt = expiresAt,
-                                    trafficLimitBytes = quota.remainingBytes,
+                                    trafficLimitBytes = if (context.config.trafficLimitsEnabled) quota.remainingBytes else 0L,
                                     telegramId = telegramId
                                 )
                             )
@@ -579,7 +599,7 @@ private data class ProvisionedHop(
     val flow: String?
 )
 
-private fun revokeIssuedConfig(context: AppContext, config: IssuedConfigEntity, reason: String) {
+internal fun revokeIssuedConfig(context: AppContext, config: IssuedConfigEntity, reason: String) {
     val hops = context.vpn.listConfigHops(config.id)
     context.vpn.markRevoking(config.id)
     if (hops.isNotEmpty()) {
@@ -590,8 +610,10 @@ private fun revokeIssuedConfig(context: AppContext, config: IssuedConfigEntity, 
                 ?: throw ApiException(HttpStatusCode.InternalServerError, "CLIENT_NOT_FOUND", "Client record missing")
             val node = context.nodes.findById(hop.nodeId)
                 ?: throw ApiException(HttpStatusCode.InternalServerError, "NODE_NOT_FOUND", "Node record missing")
-            context.xray.removeUser(node, client.email)
-            context.vpn.revokeClient(client.id, reason)
+            if (client.status != "REVOKED") {
+                context.xray.removeUser(node, client.email)
+                context.vpn.revokeClient(client.id, reason)
+            }
         }
         context.vpn.markConfigHopsRevoked(config.id)
         context.vpn.markRevoked(config.id)

@@ -315,6 +315,31 @@ class VpnRepository(private val dsl: DSLContext) {
         ).map(::mapClient)
     }
 
+    // EXPIRED releases the per-device active slots; pending deletion is tracked explicitly.
+    fun deferRevocation(configId: UUID) {
+        dsl.transaction { configuration ->
+            val tx = org.jooq.impl.DSL.using(configuration)
+            tx.execute("""
+                UPDATE clients SET status = 'EXPIRED', revoke_reason = 'revocation_pending'
+                WHERE status = 'ACTIVE' AND (id IN (SELECT client_id FROM issued_configs WHERE id = ?)
+                    OR id IN (SELECT client_id FROM issued_config_hops WHERE config_id = ?))
+            """.trimIndent(), configId, configId)
+            tx.execute("""
+                UPDATE issued_configs SET status = 'EXPIRED', error_code = 'REVOCATION_PENDING',
+                    error_message = 'Node deletion pending; replacement may be issued'
+                WHERE id = ? AND status <> 'REVOKED'
+            """.trimIndent(), configId)
+        }
+    }
+
+    fun pendingRevocations(): List<IssuedConfigEntity> = dsl.fetch("""
+        SELECT id, user_id, device_id, device_fingerprint_hash, node_id, client_id,
+               route_mode::text AS route_mode, status, vless_uri, config_json::text AS config_json,
+               expires_at, issued_at, revoked_at
+        FROM issued_configs WHERE error_code = 'REVOCATION_PENDING' OR status = 'REVOKING'
+        ORDER BY created_at LIMIT 100
+    """.trimIndent()).map(::mapConfig)
+
     fun markRevoking(configId: UUID) {
         dsl.execute(
             "UPDATE issued_configs SET status = 'REVOKING' WHERE id = ? AND status = 'ISSUED'",
@@ -324,7 +349,7 @@ class VpnRepository(private val dsl: DSLContext) {
 
     fun markRevoked(configId: UUID) {
         dsl.execute(
-            "UPDATE issued_configs SET status = 'REVOKED', revoked_at = now() WHERE id = ?",
+            "UPDATE issued_configs SET status = 'REVOKED', revoked_at = now(), error_code = NULL, error_message = NULL WHERE id = ?",
             configId
         )
     }
