@@ -9,15 +9,15 @@ val telegramBotUsername = providers.gradleProperty("SECUREVPN_TELEGRAM_BOT_USERN
     .orElse("auth_panel_85_bot")
 
 android {
-    namespace = "com.securevpn.app"
+    namespace = "app.chspch.client"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.securevpn.app"
+        applicationId = "app.chspch.client"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 9
+        versionName = "1.3.3"
         buildConfigField("String", "API_BASE_URL", "\"${apiBaseUrl.get().trimEnd('/')}\"")
         buildConfigField("String", "TELEGRAM_BOT_USERNAME", "\"${telegramBotUsername.get().removePrefix("@")}\"")
 

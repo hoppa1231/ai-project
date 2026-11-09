@@ -1,0 +1,123 @@
+package app.chspch.client
+
+import app.chspch.client.data.VpnNode
+import app.chspch.client.data.TelegramLinkedConfig
+import java.util.UUID
+
+enum class AppScreen {
+    Home,
+    Servers,
+    Settings,
+    Routing,
+    Speed
+}
+
+enum class LinkState {
+    Off,
+    Connecting,
+    Paused,
+    On
+}
+
+data class VpnRuntimeState(
+    val linkState: LinkState,
+    val trafficText: String
+)
+
+data class ServerNode(
+    val id: String,
+    val city: String,
+    val node: String,
+    val region: String,
+    val ping: Int,
+    val load: Int,
+    val recommended: Boolean = false,
+    val vlessUri: String? = null,
+    val usedBytes: Long = 0L,
+    val totalBytes: Long = 0L,
+    val available: Boolean = true
+)
+
+val ServerNodes = listOf(
+    ServerNode("msk-7", "МОСКВА", "ВДНХ-7", "msk-7", 12, 38, recommended = true),
+    ServerNode("spb-3", "ЛЕНИНГРАДЪ", "ВЫБОРГСКАЯ-3", "spb-3", 22, 51),
+    ServerNode("min-2", "МИНСКЪ", "СЛУЦКАЯ-2", "min-2", 28, 47),
+    ServerNode("tbi-1", "ТИФЛИСЪ", "ВОКЗАЛЬНЫЙ", "tbi-1", 58, 22),
+    ServerNode("ala-1", "АЛМА-АТА", "ГОРНЫЙ-1", "ala-1", 86, 15),
+    ServerNode("tas-1", "ТАШКЕНТЪ", "ВОСТОЧНЫЙ", "tas-1", 78, 33),
+    ServerNode("wld-1", "ВЛАДИВОСТОКЪ", "ТИХООКЕАНСКИЙ", "wld-1", 142, 19),
+    ServerNode("svr-1", "МУРМАНСКЪ", "СѢВЕРНЫЙ-1", "svr-1", 38, 11)
+)
+
+fun VpnNode.toServerNode(index: Int): ServerNode {
+    val displayName = russianDisplayName(name.ifBlank { region.ifBlank { "УЗЕЛ-${index + 1}" } })
+    val parts = displayName.split('-', '·', '–').map { it.trim() }.filter { it.isNotBlank() }
+    val city = (parts.firstOrNull() ?: displayName).uppercase()
+    val nodeLabel = (parts.drop(1).joinToString("-").ifBlank { russianDisplayName(region).ifBlank { "УЗЕЛ" } }).uppercase()
+    val ping = when (health.uppercase()) {
+        "HEALTHY" -> 12 + (index * 7) % 42
+        "DEGRADED" -> 58 + (index * 11) % 48
+        else -> 120 + (index * 13) % 70
+    }
+    return ServerNode(
+        id = id,
+        city = city,
+        node = nodeLabel,
+        region = region,
+        ping = ping,
+        load = load.coerceIn(0, 100),
+        recommended = index == 0 && health.equals("HEALTHY", ignoreCase = true),
+        available = health.equals("HEALTHY", ignoreCase = true)
+    )
+}
+
+fun TelegramLinkedConfig.toServerNode(index: Int): ServerNode {
+    val title = configName.ifBlank { email.substringBefore('@').ifBlank { "Telegram config ${index + 1}" } }
+    val location = listOf(
+        russianDisplayName(nodeName),
+        russianDisplayName(region).uppercase(),
+        email.takeIf { it.isNotBlank() },
+        if (enabled) "" else "ОТКЛЮЧЕН"
+    )
+        .filterNotNull()
+        .filter { it.isNotBlank() }
+        .joinToString(" · ")
+        .ifBlank { nodeId.take(8) }
+    val usagePercent = if (totalBytes <= 0L) {
+        0
+    } else {
+        (((upBytes + downBytes).toDouble() / totalBytes.toDouble()) * 100.0).toInt()
+    }
+    return ServerNode(
+        id = "$nodeId:$email",
+        city = russianDisplayName(title).uppercase(),
+        node = location.uppercase(),
+        region = region,
+        ping = if (enabled) 18 + (index * 9) % 46 else 140,
+        load = usagePercent.coerceIn(0, 100),
+        recommended = index == 0,
+        vlessUri = vlessUri,
+        usedBytes = upBytes + downBytes,
+        totalBytes = totalBytes,
+        available = enabled
+    )
+}
+
+fun String.isUuidString(): Boolean = runCatching { UUID.fromString(this) }.isSuccess
+
+/** Translate service/location labels only; addresses and protocol values stay intact. */
+fun russianDisplayName(value: String): String {
+    val names = linkedMapOf(
+        "Moscow Entry" to "Москва · Вход", "Finland" to "Финляндия",
+        "Moscow" to "Москва", "Riga" to "Рига", "Telegram IP" to "Сети Телеграма",
+        "Telegram" to "Телеграм", "YouTube" to "Ютуб", "Discord" to "Дискорд",
+        "Instagram" to "Инстаграм", "Facebook" to "Фейсбук", "Twitter" to "Твиттер",
+        "Signal" to "Сигнал", "LinkedIn" to "Линкедин", "Medium" to "Медиум",
+        "VPN" to "ВПН"
+    )
+    var result = value.replace('і', 'и').replace('І', 'И')
+    names.forEach { (english, russian) ->
+        result = result.replace(Regex("(?i)(?<![a-z0-9@./_])" + Regex.escape(english) + "(?![a-z0-9@./_])"), russian)
+    }
+    return result
+}
