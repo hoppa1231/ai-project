@@ -162,7 +162,8 @@ class ThreeXuiClient(
             if (code !in 200..299) {
                 throw IOException("3x-ui login failed HTTP $code: ${responseBody.take(300)}")
             }
-            val cookie = connection.headerFields["Set-Cookie"]
+            val cookie = connection.headerFields.entries
+                .firstOrNull { it.key?.equals("Set-Cookie", ignoreCase = true) == true }?.value
                 ?.firstOrNull { it.contains('=') }
                 ?.substringBefore(';')
                 ?: throw IOException("3x-ui login did not return session cookie")
@@ -205,6 +206,15 @@ class ThreeXuiClient(
             }
             if (code !in 200..299) {
                 throw IOException("3x-ui HTTP $code: ${responseBody.take(300)}")
+            }
+            val envelope = runCatching { json.parseToJsonElement(responseBody).jsonObject }.getOrNull()
+                ?: throw IOException("3x-ui returned an invalid API response")
+            if (envelope["success"]?.jsonPrimitive?.booleanOrNull != true) {
+                val message = envelope["msg"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                if (message.contains("login", ignoreCase = true) || message.contains("unauthorized", ignoreCase = true)) {
+                    throw UnauthorizedXuiException()
+                }
+                throw IOException("3x-ui rejected API request: " + message.take(160))
             }
             return responseBody
         } finally {
