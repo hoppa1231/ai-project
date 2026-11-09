@@ -36,3 +36,8 @@ out/
 
 ### VS Code ###
 .vscode/
+
+# Local compiler and Python caches
+.kotlin/
+__pycache__/
+*.py[cod]
