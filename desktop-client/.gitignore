@@ -1,0 +1,6 @@
+/packaging/*/core/*
+/.kotlin/
+
+/packaging/*/helper/*
+
+__pycache__/

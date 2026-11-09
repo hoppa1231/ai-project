@@ -1,0 +1,17 @@
+ЧСПЧ: third-party components
+
+sing-box 1.14.4 — GPL-3.0-or-later. The upstream LICENSE is in resources/core
+(or lib/app/resources/core for the Linux image).
+Corresponding upstream source: https://github.com/SagerNet/sing-box/tree/v1.14.4
+Release: https://github.com/SagerNet/sing-box/releases/tag/v1.14.4
+
+Go runtime — BSD-style license, GO-LICENSE.txt in the helper resources directory.
+The helper and Windows launcher sources are included under source/.
+
+Kotlin / Compose Multiplatform / Skiko — see licenses and notices in app JARs.
+Playfair Display, PT Sans, Russo One — Google Fonts, SIL Open Font License 1.1.
+Font license texts are included in the application JAR under fonts/.
+
+Windows Java runtime: Eclipse Temurin 21.0.13+9, official distribution.
+Java license and notices are retained in runtime/legal.
+Linux image: Java 21 runtime produced by jlink; legal notices retained in runtime.
