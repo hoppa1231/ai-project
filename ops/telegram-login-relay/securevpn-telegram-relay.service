@@ -1,0 +1,21 @@
+[Unit]
+Description=SecureVPN Telegram login delivery relay
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+EnvironmentFile=/etc/securevpn-telegram-relay.env
+StateDirectory=securevpn-telegram-relay
+ExecStart=/usr/bin/python3 /opt/securevpn-telegram-relay/relay.py
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
