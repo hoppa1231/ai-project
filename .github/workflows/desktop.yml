@@ -45,7 +45,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           if ! bash ./gradlew packageMsi --console=plain; then
-            find build/compose/logs/packageMsi -type f -name '*.txt' -print -exec cat {} \;
+            find build/compose/logs/packageMsi -type f -name '*.txt' -print -exec cat {} +
             exit 1
           fi
       - name: Upload build diagnostics

@@ -22,10 +22,13 @@ compose.desktop {
             appResourcesRootDir.set(project.layout.projectDirectory.dir("packaging"))
             packageName = "Chspch"
             packageVersion = "1.0.7"
-            description = "ЧСПЧ — выборочная маршрутизация"
+            // JDK 21 packages an en-US MSI with a Western code page. Keep its
+            // database metadata ASCII so WiX light.exe does not fail with LGHT0311.
+            description = if (System.getProperty("os.name").startsWith("Windows"))
+                "Chspch selective VPN client" else "ЧСПЧ — выборочная маршрутизация"
             vendor = "Chspch"
             modules("java.net.http", "jdk.crypto.ec", "java.prefs", "jdk.unsupported")
-            windows { iconFile.set(project.file("packaging/windows-x64/chspch.ico")); menuGroup = "ЧСПЧ"; shortcut = true; upgradeUuid = "95a05f86-1036-4bc3-b624-9a2203bcc574" }
+            windows { iconFile.set(project.file("packaging/windows-x64/chspch.ico")); menuGroup = "Chspch"; shortcut = true; upgradeUuid = "95a05f86-1036-4bc3-b624-9a2203bcc574" }
             linux { shortcut = true }
         }
     }
