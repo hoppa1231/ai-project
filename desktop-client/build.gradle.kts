@@ -21,11 +21,11 @@ compose.desktop {
             targetFormats(TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Rpm)
             appResourcesRootDir.set(project.layout.projectDirectory.dir("packaging"))
             packageName = "Chspch"
-            packageVersion = "1.0.5"
+            packageVersion = "1.0.7"
             description = "ЧСПЧ — выборочная маршрутизация"
             vendor = "Chspch"
             modules("java.net.http", "jdk.crypto.ec", "java.prefs", "jdk.unsupported")
-            windows { menuGroup = "ЧСПЧ"; shortcut = true; upgradeUuid = "95a05f86-1036-4bc3-b624-9a2203bcc574" }
+            windows { iconFile.set(project.file("packaging/windows-x64/chspch.ico")); menuGroup = "ЧСПЧ"; shortcut = true; upgradeUuid = "95a05f86-1036-4bc3-b624-9a2203bcc574" }
             linux { shortcut = true }
         }
     }

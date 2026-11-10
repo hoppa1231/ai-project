@@ -31,7 +31,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -849,7 +848,7 @@ fun SovietVpnApp(
                 apiNotice = apiNotice,
                 nightTheme = darkRoom,
                 onToggle = ::cycleConnection,
-                onServers = { if (telegramAccount != null) screen = AppScreen.Servers else apiNotice = "Войдите через Телеграм для выбора сервера" }
+                onServers = { screen = AppScreen.Servers }
             )
 
             AppScreen.Servers -> ServersScreen(
@@ -859,7 +858,7 @@ fun SovietVpnApp(
                 telegramMode = showingTelegramConfigs,
                 onBack = { screen = AppScreen.Home },
                 onSelect = {
-                    if (telegramAccount != null && selectedServerId != it) {
+                    if (selectedServerId != it) {
                         selectedServerId = it
                         selectedServerRequiresRotate = true
                         api.clearSavedActiveConfig()
@@ -1077,15 +1076,19 @@ fun SovietVpnApp(
                     )
                 }
         ) {
-            val swipeDirection by remember { derivedStateOf { if (swipeOffsetPx < 0f) 1 else -1 } }
-            val isSwiping by remember { derivedStateOf { swipeOffsetPx != 0f } }
+            // Capture content and translation in the same composition snapshot. Reading
+            // the live offset in graphicsLayer can reset the old screen to x=0 before
+            // recomposition has replaced its content at the end of the gesture.
+            val frameOffsetPx = swipeOffsetPx
+            val swipeDirection = if (frameOffsetPx < 0f) 1 else -1
+            val isSwiping = frameOffsetPx != 0f
             val adjacentScreen = screen.swipeTarget(swipeDirection)
             if (isSwiping && adjacentScreen != screen) {
                 Box(
                     Modifier
                         .fillMaxSize()
                         .graphicsLayer {
-                            translationX = swipeOffsetPx + if (swipeDirection > 0) swipeWidthPx else -swipeWidthPx
+                            translationX = frameOffsetPx + if (swipeDirection > 0) swipeWidthPx else -swipeWidthPx
                         }
                 ) {
                     ScreenContent(adjacentScreen)
@@ -1094,7 +1097,7 @@ fun SovietVpnApp(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .graphicsLayer { translationX = swipeOffsetPx }
+                    .graphicsLayer { translationX = frameOffsetPx }
             ) {
                 ScreenContent(screen)
             }

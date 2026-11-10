@@ -16,6 +16,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -74,12 +76,14 @@ fun main() {
                             listOf("СВЯЗЬ","СЕРВЕРЫ","МАРШРУТЫ","СКОРОСТЬ","НАСТРОЙКИ").forEachIndexed{i,title->Tab(selected=c.tab==i,onClick={c.tab=i},text={Text(title,fontFamily=Russo,fontSize=12.sp)})}
                         }
                         if(c.update!=null)UpdatePanel(c)
-                        if(c.busy||exiting)LinearProgressIndicator(Modifier.fillMaxWidth())
+                        Box(Modifier.fillMaxWidth().height(4.dp)) {
+                            if(c.busy||exiting)LinearProgressIndicator(Modifier.fillMaxSize())
+                        }
                         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(16.dp)){
                             when(c.tab){0->Home(c,compact);1->Servers(c);2->Routes(c);3->Speed(c);4->Settings(c)}
                         }
                         HorizontalDivider(color=MaterialTheme.colorScheme.outline)
-                        Text(c.status,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.fillMaxWidth())
+                        Text(c.status,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.fillMaxWidth(),minLines=2,maxLines=2)
                     }
                 }
             }}
@@ -128,11 +132,21 @@ fun main() {
         Text(if(c.linked)"ПРОПУСК ДЕЙСТВИТЕЛЕН" else "ПОЛУЧИТЬ ПРОПУСК",fontFamily=Russo,fontSize=14.sp,color=MaterialTheme.colorScheme.primary)
         Text(if(c.linked)"Аккаунт Telegram подключён. Доступны обычные серверы и свои маршруты." else "Гостевое подключение открывает Telegram. Войдите, чтобы выбрать остальные сервисы.")
         OutlinedButton(onClick={c.startLogin()},enabled=!c.busy&&!c.speedBusy){Text(if(c.linked)"Войти повторно" else "Войти через Telegram")}
-        if(c.login!=null){
+        c.login?.let { links ->
+            val clipboard = LocalClipboardManager.current
+            var copied by remember(links) { mutableStateOf(false) }
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                TextButton(onClick={c.openLogin(false)}){Text("Telegram")};TextButton(onClick={c.openLogin(true)}){Text("Через браузер")}
+                TextButton(onClick={c.openLogin(false)},enabled=!c.loginOpening){Text("Telegram")}
+                TextButton(onClick={c.openLogin(true)},enabled=!c.loginOpening){Text("Через браузер")}
             }
-            TextButton(onClick={c.action{c.pollLogin()}},enabled=!c.busy){Text("Проверить вход")}
+            Text("Если ничего не открылось, скопируйте ссылку и вставьте в браузер. Затем нажмите «Старт» в боте.",style=MaterialTheme.typography.bodySmall)
+            SelectionContainer { Text(links.web.toASCIIString(),style=MaterialTheme.typography.bodySmall) }
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick={
+                    copied = runCatching { clipboard.setText(AnnotatedString(links.web.toASCIIString())) }.isSuccess
+                }) { Text(if(copied) "Ссылка скопирована" else "Копировать ссылку") }
+                TextButton(onClick={c.action{c.pollLogin()}},enabled=!c.busy){Text("Проверить вход")}
+            }
         }
     }
 }
@@ -206,7 +220,12 @@ fun main() {
     Text("СКОРОСТЬ СОЕДИНЕНИЯ",style=MaterialTheme.typography.headlineMedium)
     Text("Реальный замер до speed.cloudflare.com по текущим правилам маршрутизации. Он может расходовать около 12 МБ.")
     Button(onClick={c.speedTest()},enabled=c.connected&&c.linked&&!c.busy&&!c.speedBusy){Text(if(c.speedBusy)"Измеряем…" else "Начать замер")}
-    if(c.speedBusy){LinearProgressIndicator(Modifier.fillMaxWidth());TextButton(onClick={c.cancelSpeed()}){Text("Отменить замер")}}
+    Box(Modifier.fillMaxWidth().height(4.dp)) {
+        if(c.speedBusy)LinearProgressIndicator(Modifier.fillMaxSize())
+    }
+    Box(Modifier.height(48.dp)) {
+        if(c.speedBusy)TextButton(onClick={c.cancelSpeed()}){Text("Отменить замер")}
+    }
     Box(Modifier.fillMaxWidth(),contentAlignment=Alignment.Center){DesktopSpeedGauge((c.speedCurrent?.optDouble("download",0.0)?:0.0).toFloat())}
     SpeedResult("ТЕКУЩИЙ РЕЗУЛЬТАТ",c.speedCurrent)
     if(c.speedPrevious!=null)SpeedResult("ПРЕДЫДУЩИЙ",c.speedPrevious)
@@ -252,7 +271,9 @@ fun main() {
             }
         }
         if(c.updateStatus.isNotBlank())Text(c.updateStatus,style=MaterialTheme.typography.bodySmall,maxLines=2)
-        if(c.updateDownloading)LinearProgressIndicator(c.updateProgress/100f,Modifier.fillMaxWidth())
+        Box(Modifier.fillMaxWidth().height(4.dp)) {
+            if(c.updateDownloading)LinearProgressIndicator(c.updateProgress/100f,Modifier.fillMaxSize())
+        }
         if(c.updateFile!=null)Text("Распакуйте архив. Закройте ЧСПЧ и запустите "+if(System.getProperty("os.name").startsWith("Windows"))"Install.exe. Вход и настройки сохранятся." else "install-linux.sh. Вход и настройки сохранятся.",style=MaterialTheme.typography.bodySmall)
     }
 }

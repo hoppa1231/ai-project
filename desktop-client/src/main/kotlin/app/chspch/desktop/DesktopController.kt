@@ -22,6 +22,7 @@ class DesktopController(val store: StateStore, private val scope: CoroutineScope
     var linked by mutableStateOf(store.data.optBoolean("linked")); private set
     var policy by mutableStateOf(JSONObject()); private set
     var login by mutableStateOf<TelegramLoginLinks?>(null); private set
+    var loginOpening by mutableStateOf(false); private set
     var tab by mutableStateOf(0)
     var night by mutableStateOf(store.data.optBoolean("night", true))
     var autoReconnect by mutableStateOf(store.data.optBoolean("autoReconnect", true))
@@ -157,9 +158,17 @@ class DesktopController(val store: StateStore, private val scope: CoroutineScope
     }
     fun openLogin(web: Boolean) {
         val links = login ?: return
-        status = if (runCatching { Desktop.getDesktop().browse(if (web) links.web else links.app) }.isSuccess)
-            "Нажмите «Старт» в открывшемся Telegram. Подтверждение проверяется автоматически."
-            else "Telegram не открылся. Нажмите «Через браузер»."
+        if (loginOpening) return
+        loginOpening = true
+        scope.launch {
+            try {
+                val dispatched = withContext(Dispatchers.IO) { ExternalLinks.open(if (web) links.web else links.app) }
+                if (login != links) return@launch
+                status = if (dispatched)
+                    "Запрос открытия отправлен. Нажмите «Старт» в боте. Если окно не появилось, скопируйте ссылку в карточке входа."
+                else "Не удалось открыть ссылку. Скопируйте её в карточке входа и откройте вручную."
+            } finally { loginOpening = false }
+        }
     }
     suspend fun pollLogin() {
         val links = login ?: return

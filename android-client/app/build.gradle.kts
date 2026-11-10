@@ -16,8 +16,8 @@ android {
         applicationId = "app.chspch.client"
         minSdk = 26
         targetSdk = 34
-        versionCode = 9
-        versionName = "1.3.3"
+        versionCode = 10
+        versionName = "1.3.4"
         buildConfigField("String", "API_BASE_URL", "\"${apiBaseUrl.get().trimEnd('/')}\"")
         buildConfigField("String", "TELEGRAM_BOT_USERNAME", "\"${telegramBotUsername.get().removePrefix("@")}\"")
 

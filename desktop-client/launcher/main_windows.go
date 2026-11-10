@@ -42,7 +42,7 @@ func install(source string) (string, error) {
 	}
 
 	exe := filepath.Join(target, "Chspch.exe")
-	script := "$w=New-Object -ComObject WScript.Shell; foreach($dir in @($w.SpecialFolders.Item('Desktop'),$w.SpecialFolders.Item('Programs'))) { $s=$w.CreateShortcut((Join-Path $dir 'ЧСПЧ.lnk')); $s.TargetPath=" + quote(exe) + "; $s.WorkingDirectory=" + quote(target) + "; $s.Save() }"
+	script := "$w=New-Object -ComObject WScript.Shell; foreach($dir in @($w.SpecialFolders.Item('Desktop'),$w.SpecialFolders.Item('Programs'))) { $s=$w.CreateShortcut((Join-Path $dir 'ЧСПЧ.lnk')); $s.TargetPath=" + quote(exe) + "; $s.WorkingDirectory=" + quote(target) + "; $s.IconLocation=" + quote(exe + ",0") + "; $s.Save() }"
 	if powershell(script) != nil {
 		message("Приложение установлено. Ярлык создать не удалось; откройте Chspch.exe в папке установки.")
 	}

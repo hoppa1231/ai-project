@@ -26,7 +26,7 @@ shutil.copytree(root/'launcher', dest/'source/launcher')
 shutil.copy2(root/'WINDOWS-CHECK.md', dest/'WINDOWS-CHECK.md')
 shutil.copy2(root/'THIRD_PARTY.txt', dest/'THIRD_PARTY.txt')
 (dest/'README.txt').write_text('ЧСПЧ для Windows x64\n\nРаспакуйте всю папку. Install.exe устанавливает в профиль пользователя и создаёт ярлык.\nChspch.exe запускает переносную версию без установки. Java и VPN-ядро включены.\nДля TUN подтвердите штатный запрос UAC. Исходники помощника: source/helper/.\nЭтот пакет собран на Linux; запуск и TUN нужно проверить на Windows.\n',encoding='utf-8-sig')
-output=root/'build/distributions/chspch-windows-x64-1.0.5.zip';output.parent.mkdir(parents=True,exist_ok=True)
+output=root/'build/distributions/chspch-windows-x64-1.0.7.zip';output.parent.mkdir(parents=True,exist_ok=True)
 with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
     for file in dest.rglob('*'):
         if file.is_file():z.write(file,Path('Chspch')/file.relative_to(dest))

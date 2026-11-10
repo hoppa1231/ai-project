@@ -176,7 +176,7 @@ fun HomeScreen(
             Spacer(Modifier.height(sectionGap))
             ServerTicket(
                 server = server,
-                enabled = !isOff,
+                enabled = true,
                 onClick = onServers
             )
             Box(

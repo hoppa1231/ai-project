@@ -9,7 +9,7 @@ import java.net.http.HttpResponse
 import java.time.Duration
 import java.util.UUID
 
-const val DESKTOP_VERSION = "1.0.5"
+const val DESKTOP_VERSION = "1.0.7"
 
 class ApiFailure(val status: Int) : RuntimeException(when(status) {
     401 -> "Сессия истекла. Войдите через Telegram повторно."
