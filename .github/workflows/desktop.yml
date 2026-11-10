@@ -43,7 +43,22 @@ jobs:
         run: bash ./gradlew test createDistributable --console=plain
       - name: Build Windows installer
         if: runner.os == 'Windows'
-        run: bash ./gradlew packageMsi --console=plain
+        run: |
+          if ! bash ./gradlew packageMsi --console=plain; then
+            find build/compose/logs/packageMsi -type f -name '*.txt' -print -exec cat {} \;
+            exit 1
+          fi
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chspch-diagnostics-${{ matrix.target }}
+          path: |
+            desktop-client/build/test-results/
+            desktop-client/build/reports/tests/
+            desktop-client/build/compose/logs/
+            desktop-client/build/compose/tmp/*.args.txt
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         with:
           name: chspch-${{ matrix.target }}
