@@ -1,21 +1,31 @@
 package app.chspch.desktop
 
 import java.nio.file.Files
+import java.io.File
+import org.junit.Assume.assumeTrue
 import kotlin.test.*
 
 class InstalledAppsTest {
+    @Test fun `command words and unsafe launcher rejection are platform independent`() {
+        assertEquals(listOf("hello world","%U"),InstalledApps.commandWords("\"hello world\" %U"))
+        assertEquals(listOf("env","LANG=ru_RU","/opt/my browser","--new-window","%U"),
+            InstalledApps.commandWords("env LANG=ru_RU \"/opt/my browser\" --new-window %U"))
+        assertNull(InstalledApps.executable("flatpak run org.example.App",emptyList()))
+        assertNull(InstalledApps.executable("sh -c 'anything'",emptyList()))
+        assertEquals(emptyList(),InstalledApps.commandWords("\"unterminated"))
+    }
     @Test fun `quoted launcher paths and env assignments resolve without executing arguments`() {
+        // This fixture exercises Unix absolute paths, shell quoting and executable bits.
+        // Native Windows paths are intentionally not inputs to the Linux launcher parser.
+        assumeTrue("Unix launcher fixture requires a Unix filesystem", File.separatorChar == '/')
         val dir=Files.createTempDirectory("app-scan-test")
         try {
             val file=Files.createFile(dir.resolve("my browser")).toFile().apply{setExecutable(true)}.toPath()
             assertEquals(file.toRealPath().toString(),InstalledApps.executable("env LANG=ru_RU \"$file\" --new-window %U",emptyList()))
-            assertEquals(listOf("hello world","%U"),InstalledApps.commandWords("\"hello world\" %U"))
-            assertNull(InstalledApps.executable("flatpak run org.example.App",listOf(dir)))
-            assertNull(InstalledApps.executable("sh -c 'anything'",listOf(dir)))
-            assertEquals(emptyList(),InstalledApps.commandWords("\"unterminated"))
         } finally {Files.walk(dir).use{it.sorted(Comparator.reverseOrder()).forEach(Files::deleteIfExists)}}
     }
     @Test fun `plain shell wrapper resolves actual process and shared interpreter is never selected`() {
+        assumeTrue("Unix shell wrapper fixture requires a Unix filesystem", File.separatorChar == '/')
         val dir=Files.createTempDirectory("app-wrapper-test")
         try {
             val binary=Files.createFile(dir.resolve("browser-bin")).toFile().apply{setExecutable(true)}.toPath()
